@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import type { ApartmentProfile, BedroomUse, BudgetTier } from '../types';
+import type { AcType, ApartmentProfile, BedroomUse, BudgetTier } from '../types';
 import { applyPlan } from '../planner/generate';
-import { BEDROOM_LABEL, defaultBedrooms } from '../planner/templates';
+import { BEDROOM_LABEL, defaultBedrooms, withDefaults } from '../planner/templates';
 import { emptyHome, live } from '../lib/store';
 import { shekel, totals } from '../lib/format';
 import { Sheet, Stepper } from './Sheet';
@@ -14,6 +14,11 @@ interface Props {
   busy?: boolean;
 }
 
+const AC_TYPES: { k: AcType; label: string }[] = [
+  { k: 'central', label: 'מיני-מרכזי לכל הבית' },
+  { k: 'split', label: 'מזגן לכל חדר' },
+];
+
 const TIERS: { k: BudgetTier; label: string }[] = [
   { k: 'saver', label: 'חסכוני' },
   { k: 'mid', label: 'בינוני' },
@@ -21,7 +26,7 @@ const TIERS: { k: BudgetTier; label: string }[] = [
 ];
 
 export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Props) {
-  const [p, setP] = useState<ApartmentProfile>(initial);
+  const [p, setP] = useState<ApartmentProfile>(() => withDefaults(initial));
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
   const set = <K extends keyof ApartmentProfile>(k: K, v: ApartmentProfile[K]) => setP((x) => ({ ...x, [k]: v }));
 
@@ -131,6 +136,15 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
         </div>
       )}
 
+      <h3 className="section-title">מיזוג אוויר</h3>
+      <div className="seg" role="group" aria-label="סוג מיזוג">
+        {AC_TYPES.map((t) => (
+          <button type="button" key={t.k} aria-pressed={p.acType === t.k} onClick={() => set('acType', t.k)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       <h3 className="section-title">מרפסת</h3>
       <div className="grid-3">
         <label className="field">
@@ -155,13 +169,34 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
         </label>
         <label className="field">
           <span>חניות</span>
-          <Stepper label="חניות" value={p.parking} max={4} onChange={(v) => set('parking', v)} />
+          <Stepper
+            label="חניות"
+            value={p.parking}
+            max={4}
+            onChange={(v) => setP((x) => ({ ...x, parking: v, evChargers: Math.min(x.evChargers, v) }))}
+          />
+        </label>
+        <label className="field">
+          <span>עמדות טעינה לרכב חשמלי</span>
+          <Stepper label="עמדות טעינה" value={p.evChargers} max={p.parking} onChange={(v) => set('evChargers', v)} />
         </label>
         <label className="toggle" style={{ alignSelf: 'end' }}>
           <input type="checkbox" checked={p.parkingCovered} onChange={(e) => set('parkingCovered', e.target.checked)} />
           <span>
             <b>מקורות</b>
           </span>
+        </label>
+      </div>
+
+      <h3 className="section-title">חיות מחמד</h3>
+      <div className="grid-3">
+        <label className="field">
+          <span>חתולים</span>
+          <Stepper label="חתולים" value={p.cats} max={10} onChange={(v) => set('cats', v)} />
+        </label>
+        <label className="field">
+          <span>כלבים</span>
+          <Stepper label="כלבים" value={p.dogs} max={10} onChange={(v) => set('dogs', v)} />
         </label>
       </div>
 

@@ -65,10 +65,26 @@ export const DEFAULT_PROFILE: ApartmentProfile = {
   storageArea: 4,
   parking: 2,
   parkingCovered: true,
+  evChargers: 1,
+  acType: 'central',
+  cats: 3,
+  dogs: 0,
   smartHome: true,
   works: true,
   tier: 'mid',
 };
+
+/** Fills fields added after a profile was saved, so older apartments keep working in the planner. */
+export function withDefaults(p: Partial<ApartmentProfile>): ApartmentProfile {
+  return {
+    ...DEFAULT_PROFILE,
+    evChargers: Math.min(1, p.parking ?? DEFAULT_PROFILE.parking),
+    acType: 'split',
+    cats: 0,
+    dogs: 0,
+    ...p,
+  };
+}
 
 function bedroomItems(use: BedroomUse): ItemTpl[] {
   switch (use) {
@@ -123,8 +139,10 @@ function bedroomItems(use: BedroomUse): ItemTpl[] {
 }
 
 /** Builds the category templates for an apartment. Prices are mid-tier; generate.ts applies the tier. */
-export function buildTemplates(p: ApartmentProfile): CategoryTpl[] {
+export function buildTemplates(profile: ApartmentProfile): CategoryTpl[] {
+  const p = withDefaults(profile);
   const cats: CategoryTpl[] = [];
+  const pets = p.cats + p.dogs;
   const bedrooms = p.bedrooms.length;
   const wet = p.showers + p.bathtubs;
   const add = (c: Omit<CategoryTpl, 'color'>) => cats.push({ ...c, color: color(cats.length) });
@@ -177,11 +195,26 @@ export function buildTemplates(p: ApartmentProfile): CategoryTpl[] {
   add({
     key: 'ac',
     name: 'מיזוג אוויר',
-    items: [
-      { k: 'living', n: 'מזגן מיני-מרכזי לסלון ולמטבח כולל התקנה', p: 15000, pr: 'must' },
-      { k: 'bedrooms', n: 'מזגן עילי לחדר שינה כולל התקנה', p: 3200, q: bedrooms, pr: 'must' },
-      { k: 'fans', n: 'מאוורר תקרה שקט', p: 750, q: bedrooms, pr: 'later' },
-    ],
+    note: p.acType === 'central' ? 'מיני-מרכזי לכל הבית' : 'מזגן לכל חדר',
+    items:
+      p.acType === 'central'
+        ? [
+            {
+              k: 'central',
+              n: 'מזגן מיני-מרכזי לכל הבית כולל התקנה ותעלות',
+              p: 16000 + 3000 * bedrooms,
+              pr: 'must',
+              note: 'לבדוק מול הקבלן את הכנת התעלות והניקוז',
+            },
+            { k: 'zoning', n: 'מערכת אזורים (דמפרים) — שליטה נפרדת בכל חדר', p: 1100, q: bedrooms + 1, pr: 'important' },
+            { k: 'thermostat', n: 'בקר Wi-Fi / תרמוסטט חכם למיני-מרכזי', p: 900, pr: 'important' },
+            { k: 'fans', n: 'מאוורר תקרה שקט', p: 750, q: bedrooms, pr: 'later' },
+          ]
+        : [
+            { k: 'living', n: 'מזגן מיני-מרכזי לסלון ולמטבח כולל התקנה', p: 15000, pr: 'must' },
+            { k: 'bedrooms', n: 'מזגן עילי לחדר שינה כולל התקנה', p: 3200, q: bedrooms, pr: 'must' },
+            { k: 'fans', n: 'מאוורר תקרה שקט', p: 750, q: bedrooms, pr: 'later' },
+          ],
   });
 
   add({
@@ -193,7 +226,13 @@ export function buildTemplates(p: ApartmentProfile): CategoryTpl[] {
       { k: 'toaster', n: 'טוסטר / טוסטר-אובן', p: 450, pr: 'important' },
       { k: 'airfryer', n: 'סיר טיגון באוויר', p: 650, pr: 'important' },
       { k: 'blender', n: 'בלנדר / מעבד מזון', p: 900, pr: 'later' },
-      { k: 'robot', n: 'שואב אבק רובוטי שוטף', p: 2200, pr: 'important' },
+      {
+        k: 'robot',
+        n: 'שואב אבק רובוטי שוטף',
+        p: 2200,
+        pr: 'important',
+        note: pets ? 'לבחור דגם עם מברשת גומי לשיער חיות' : undefined,
+      },
       { k: 'vacuum', n: 'שואב אבק אלחוטי', p: 1500, pr: 'must' },
       { k: 'iron', n: 'מגהץ קיטור / קולב אדים', p: 500, pr: 'later' },
       { k: 'hairdryer', n: 'מייבש שיער', p: 350, pr: 'important' },
@@ -204,7 +243,13 @@ export function buildTemplates(p: ApartmentProfile): CategoryTpl[] {
     key: 'living',
     name: 'סלון',
     items: [
-      { k: 'sofa', n: 'ספה פינתית בד', p: 9000, pr: 'must' },
+      {
+        k: 'sofa',
+        n: 'ספה פינתית בד',
+        p: 9000,
+        pr: 'must',
+        note: p.cats ? 'בד עמיד לשריטות (מיקרופייבר / Performance)' : undefined,
+      },
       { k: 'armchair', n: 'כורסת קריאה', p: 2500, pr: 'later' },
       { k: 'table', n: 'שולחן סלון', p: 1500, pr: 'important' },
       { k: 'tv', n: 'טלוויזיה 65״', p: 4500, pr: 'important' },
@@ -369,7 +414,10 @@ export function buildTemplates(p: ApartmentProfile): CategoryTpl[] {
         { k: 'boiler', n: 'בקר דוד חכם', p: 450, pr: 'important' },
         { k: 'leak', n: 'חיישני הצפה', p: 130, q: wet + 1, pr: 'important' },
         { k: 'plugs', n: 'מתגים ושקעים חכמים', p: 160, q: 6, pr: 'later' },
-        { k: 'ac-ctrl', n: 'שלט מזגן חכם (Wi-Fi)', p: 250, q: bedrooms, pr: 'later' },
+        ...(p.acType === 'split'
+          ? [{ k: 'ac-ctrl', n: 'שלט מזגן חכם (Wi-Fi)', p: 250, q: bedrooms, pr: 'later' as Priority }]
+          : []),
+        ...(pets ? [{ k: 'pet-cam', n: 'מצלמת פנים לצפייה בחיות', p: 250, pr: 'later' as Priority }] : []),
         { k: 'smoke', n: 'גלאי עשן', p: 150, q: 2, pr: 'must' },
         { k: 'fire', n: 'מטף + שמיכת כיבוי למטבח', p: 350, pr: 'must' },
         { k: 'speaker', n: 'רמקול / עוזר קולי', p: 450, pr: 'later' },
@@ -390,6 +438,60 @@ export function buildTemplates(p: ApartmentProfile): CategoryTpl[] {
       { k: 'cleaning', n: 'ציוד ניקיון התחלתי (מגב, דלי, מטאטא, חומרים)', p: 600, pr: 'must' },
     ],
   });
+
+  if (pets > 0) {
+    const petNote = [p.cats && `${p.cats} חתולים`, p.dogs && `${p.dogs === 1 ? 'כלב' : `${p.dogs} כלבים`}`].filter(Boolean).join(' · ');
+    add({
+      key: 'pets',
+      name: 'חיות מחמד',
+      note: petNote,
+      items: [
+        ...(p.cats > 0
+          ? [
+              { k: 'litter', n: 'ארגז חול סגור עם מסנן', p: 250, q: p.cats, pr: 'must' as Priority, note: 'כלל אצבע: ארגז לכל חתול' },
+              { k: 'litter-mat', n: 'שטיחון לכידת חול', p: 80, q: p.cats, pr: 'important' as Priority },
+              { k: 'tree', n: 'עץ חתולים גבוה (עד התקרה)', p: 900, q: Math.ceil(p.cats / 2), pr: 'must' as Priority },
+              { k: 'scratchers', n: 'משטחי גירוד לקיר ולרצפה', p: 120, q: p.cats + 1, pr: 'important' as Priority },
+              { k: 'wall', n: 'מדפי טיפוס וגשרים לקיר', p: 650, pr: 'later' as Priority },
+              { k: 'fountain', n: 'מזרקת מים לחתולים', p: 250, pr: 'must' as Priority },
+              { k: 'cat-bowls', n: 'קערות אוכל ומים (קרמיקה / נירוסטה)', p: 60, q: p.cats, pr: 'must' as Priority },
+              { k: 'feeder', n: 'מזין אוטומטי', p: 450, pr: 'later' as Priority },
+              { k: 'cat-beds', n: 'מיטות / מערות לחתולים', p: 150, q: p.cats, pr: 'later' as Priority },
+              { k: 'carrier', n: 'מנשא לנסיעה לווטרינר', p: 180, q: p.cats, pr: 'important' as Priority },
+              {
+                k: 'window-nets',
+                n: 'רשתות בטיחות לחתולים לחלונות',
+                p: 350,
+                q: bedrooms + 2,
+                pr: 'must' as Priority,
+                note: 'חובה לפני שהחתולים נכנסים לדירה',
+              },
+              ...(p.balconyArea > 0
+                ? [
+                    {
+                      k: 'balcony-net',
+                      n: 'רשת בטיחות לחתולים במרפסת (החלק הפתוח)',
+                      p: 1800,
+                      pr: 'must' as Priority,
+                      note: 'גם אם יש סגירה — לחלון שנשאר פתוח',
+                    },
+                  ]
+                : []),
+            ]
+          : []),
+        ...(p.dogs > 0
+          ? [
+              { k: 'dog-bed', n: 'מיטת כלב', p: 350, q: p.dogs, pr: 'must' as Priority },
+              { k: 'dog-bowls', n: 'קערות אוכל ומים', p: 90, q: p.dogs, pr: 'must' as Priority },
+              { k: 'leash', n: 'רצועה ורתמה', p: 180, q: p.dogs, pr: 'must' as Priority },
+              { k: 'crate', n: 'כלוב / מלונה פנימית', p: 450, q: p.dogs, pr: 'later' as Priority },
+            ]
+          : []),
+        { k: 'purifier', n: 'מטהר אוויר עם מסנן HEPA', p: 1200, pr: 'later' },
+        { k: 'lint', n: 'רולרים ומברשת להסרת שיער', p: 120, pr: 'important' },
+      ],
+    });
+  }
 
   if (p.storageArea > 0) {
     add({
@@ -414,7 +516,18 @@ export function buildTemplates(p: ApartmentProfile): CategoryTpl[] {
       name: p.parking > 1 ? 'חניות' : 'חניה',
       note: `${p.parking}${p.parkingCovered ? ' מקורות' : ''}`,
       items: [
-        { k: 'ev', n: 'עמדת טעינה לרכב חשמלי כולל התקנה', p: 5500, pr: 'important', note: 'לתאם עם חברת הניהול והחשמלאי של הבניין' },
+        ...(p.evChargers > 0
+          ? [
+              {
+                k: 'ev',
+                n: 'עמדת טעינה לרכב חשמלי כולל התקנה',
+                p: 5500,
+                q: p.evChargers,
+                pr: 'important' as Priority,
+                note: 'לתאם עם חברת הניהול והחשמלאי של הבניין',
+              },
+            ]
+          : []),
         { k: 'bumpers', n: 'מגיני קיר / פגושי ספוג', p: 150, q: p.parking, pr: 'later' },
         { k: 'lock', n: 'מחסום חניה מתקפל', p: 450, q: p.parking, pr: 'later' },
         { k: 'sign', n: 'שלט מספר דירה לחניה', p: 120, q: p.parking, pr: 'later' },

@@ -1,6 +1,7 @@
 export type Priority = 'must' | 'important' | 'later';
 export type BudgetTier = 'saver' | 'mid' | 'premium';
 export type BedroomUse = 'master' | 'kids' | 'office' | 'guest';
+export type AcType = 'central' | 'split';
 
 export interface Category {
   id: string;
@@ -48,6 +49,11 @@ export interface ApartmentProfile {
   storageArea: number;
   parking: number;
   parkingCovered: boolean;
+  evChargers: number;
+  /** Whole-home ducted mini-central unit, or a wall unit per bedroom. */
+  acType: AcType;
+  cats: number;
+  dogs: number;
   smartHome: boolean;
   works: boolean;
   tier: BudgetTier;

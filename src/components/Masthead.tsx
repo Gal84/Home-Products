@@ -41,6 +41,9 @@ export function Masthead({ data, cats, items, status, onRename, onPlanner, onSet
     p.kitchenIsland && `אי ${p.kitchenIsland.length}×${p.kitchenIsland.depth}`,
     p.storageArea && `מחסן ${p.storageArea} מ״ר`,
     p.parking && `${p.parking === 1 ? 'חניה' : `${p.parking} חניות`}${p.parkingCovered ? (p.parking === 1 ? ' מקורה' : ' מקורות') : ''}`,
+    p.acType === 'central' && 'מיני-מרכזי',
+    p.cats && `${p.cats === 1 ? 'חתול' : `${p.cats} חתולים`}`,
+    p.dogs && `${p.dogs === 1 ? 'כלב' : `${p.dogs} כלבים`}`,
   ].filter(Boolean) as string[];
 
   return (
