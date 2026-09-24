@@ -25,6 +25,12 @@ export function applyPlan(data: HomeData, profile: ApartmentProfile, mode: 'merg
 
   for (const tpl of buildTemplates(profile)) {
     let cat = liveCats.find((c) => c.key === tpl.key);
+    if (cat && !cat.note && tpl.note) {
+      // Fill in details the planner learned since (room size, ממ״ד) without overwriting the user's text.
+      const withNote: Category = { ...cat, note: tpl.note, updatedAt: now };
+      categories = categories.map((c) => (c.id === withNote.id ? withNote : c));
+      cat = withNote;
+    }
     if (!cat) {
       cat = { id: uid(), key: tpl.key, name: tpl.name, note: tpl.note, color: tpl.color, order: order++, updatedAt: now };
       categories = [...categories, cat];

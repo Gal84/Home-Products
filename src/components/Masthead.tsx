@@ -34,6 +34,9 @@ export function Masthead({ data, cats, items, status, onRename, onPlanner, onSet
 
   const specs = [
     `${p.rooms} חדרים`,
+    p.aptType === 'garden' && `דירת גן${p.gardenArea ? ` · גינה ${p.gardenArea} מ״ר` : ''}`,
+    p.aptType === 'penthouse' && `פנטהאוז${p.roofArea ? ` · גג ${p.roofArea} מ״ר` : ''}${p.duplex ? ' · דופלקס' : ''}`,
+    p.aptType !== 'garden' && p.floor && `קומה ${p.floor}`,
     p.toilets && `${p.toilets} שירותים`,
     p.showers && `${p.showers > 1 ? `${p.showers} חדרי ` : ''}מקלחת`,
     p.bathtubs && `${p.bathtubs > 1 ? `${p.bathtubs} חדרי ` : ''}אמבטיה`,

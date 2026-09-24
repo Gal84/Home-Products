@@ -2,6 +2,7 @@ export type Priority = 'must' | 'important' | 'later';
 export type BudgetTier = 'saver' | 'mid' | 'premium';
 export type BedroomUse = 'master' | 'kids' | 'office' | 'guest';
 export type AcType = 'central' | 'split';
+export type AptType = 'regular' | 'garden' | 'penthouse';
 
 export interface Category {
   id: string;
@@ -38,7 +39,18 @@ export interface Item {
 export interface ApartmentProfile {
   name: string;
   rooms: number;
+  aptType: AptType;
+  floor: number;
+  /** Private garden, for a garden apartment. */
+  gardenArea: number;
+  /** Roof terrace, for a penthouse. */
+  roofArea: number;
+  duplex: boolean;
   bedrooms: BedroomUse[];
+  /** Free-text size per bedroom, e.g. "3.71×3.37" — same order as `bedrooms`. */
+  bedroomSizes: string[];
+  /** Index into `bedrooms` of the safe room (ממ״ד), if any. */
+  mamad: number | null;
   toilets: number;
   showers: number;
   bathtubs: number;
