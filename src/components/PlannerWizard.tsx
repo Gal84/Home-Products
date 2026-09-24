@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import type { AcType, ApartmentProfile, BedroomUse, BudgetTier } from '../types';
+import type { AcType, ApartmentProfile, AptType, BedroomUse, BudgetTier } from '../types';
 import { applyPlan } from '../planner/generate';
-import { BEDROOM_LABEL, defaultBedrooms, withDefaults } from '../planner/templates';
+import { APT_TYPE_LABEL, BEDROOM_LABEL, defaultBedrooms, withDefaults } from '../planner/templates';
 import { emptyHome, live } from '../lib/store';
 import { shekel, totals } from '../lib/format';
 import { Sheet, Stepper } from './Sheet';
@@ -28,6 +28,20 @@ const TIERS: { k: BudgetTier; label: string }[] = [
 export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Props) {
   const [p, setP] = useState<ApartmentProfile>(() => withDefaults(initial));
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
+  const setAptType = (aptType: AptType) =>
+    setP((x) => ({
+      ...x,
+      aptType,
+      floor: aptType === 'garden' ? 0 : x.floor || 1,
+      gardenArea: aptType === 'garden' ? x.gardenArea || 60 : x.gardenArea,
+      roofArea: aptType === 'penthouse' ? x.roofArea || 40 : x.roofArea,
+    }));
+  const setSize = (i: number, v: string) =>
+    setP((x) => {
+      const bedroomSizes = [...x.bedroomSizes];
+      bedroomSizes[i] = v;
+      return { ...x, bedroomSizes };
+    });
   const set = <K extends keyof ApartmentProfile>(k: K, v: ApartmentProfile[K]) => setP((x) => ({ ...x, [k]: v }));
 
   const setRooms = (rooms: number) =>
@@ -36,7 +50,9 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
       const bedrooms = x.bedrooms.slice(0, want);
       const defaults = defaultBedrooms(rooms);
       while (bedrooms.length < want) bedrooms.push(defaults[bedrooms.length] ?? 'kids');
-      return { ...x, rooms, bedrooms };
+      const bedroomSizes = x.bedroomSizes.slice(0, want);
+      const mamad = x.mamad != null && x.mamad < want ? x.mamad : null;
+      return { ...x, rooms, bedrooms, bedroomSizes, mamad };
     });
 
   const preview = useMemo(() => {
@@ -66,6 +82,45 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
         <span>שם</span>
         <input className="input" value={p.name} onChange={(e) => set('name', e.target.value)} />
       </label>
+      <div className="field">
+        <span>סוג הדירה</span>
+        <div className="seg" role="group" aria-label="סוג הדירה">
+          {(Object.keys(APT_TYPE_LABEL) as AptType[]).map((t) => (
+            <button type="button" key={t} aria-pressed={p.aptType === t} onClick={() => setAptType(t)}>
+              {APT_TYPE_LABEL[t]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid-3">
+        {p.aptType !== 'garden' && (
+          <label className="field">
+            <span>קומה</span>
+            <Stepper label="קומה" value={p.floor} max={80} onChange={(v) => set('floor', v)} />
+          </label>
+        )}
+        {p.aptType === 'garden' && (
+          <label className="field">
+            <span>שטח הגינה (מ״ר)</span>
+            <Stepper label="שטח גינה" value={p.gardenArea} max={1000} step={5} onChange={(v) => set('gardenArea', v)} />
+          </label>
+        )}
+        {p.aptType === 'penthouse' && (
+          <>
+            <label className="field">
+              <span>מרפסת גג (מ״ר)</span>
+              <Stepper label="מרפסת גג" value={p.roofArea} max={500} step={5} onChange={(v) => set('roofArea', v)} />
+            </label>
+            <label className="toggle" style={{ alignSelf: 'end' }}>
+              <input type="checkbox" checked={p.duplex} onChange={(e) => set('duplex', e.target.checked)} />
+              <span>
+                <b>דופלקס</b>
+                <small>שתי קומות עם מדרגות</small>
+              </span>
+            </label>
+          </>
+        )}
+      </div>
       <div className="grid-3">
         <label className="field">
           <span>מספר חדרים (כולל סלון)</span>
@@ -88,7 +143,7 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
       {p.bedrooms.length > 0 && (
         <>
           <h3 className="section-title">ייעוד החדרים</h3>
-          <p className="hint">חדר אחד הוא הסלון; לכל שאר החדרים בחרו ייעוד — הרשימה תיבנה בהתאם.</p>
+          <p className="hint">חדר אחד הוא הסלון. לכל שאר החדרים בחרו ייעוד, ואפשר לרשום מידות ולסמן איזה חדר הוא הממ״ד.</p>
           <div className="room-list">
             {p.bedrooms.map((use, i) => (
               <div className="room-row" key={i}>
@@ -105,6 +160,22 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
                     </button>
                   ))}
                 </div>
+                <input
+                  className="input num room-size"
+                  dir="ltr"
+                  aria-label={`מידות חדר ${i + 1}`}
+                  placeholder="3.50×3.20"
+                  value={p.bedroomSizes[i] ?? ''}
+                  onChange={(e) => setSize(i, e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn sm room-mamad"
+                  aria-pressed={p.mamad === i}
+                  onClick={() => set('mamad', p.mamad === i ? null : i)}
+                >
+                  ממ״ד
+                </button>
               </div>
             ))}
           </div>

@@ -276,6 +276,13 @@ a {
 .seg button + button {
   border-inline-start: 1px solid var(--rule-strong);
 }
+.field > .seg {
+  display: flex;
+}
+.field > .seg button,
+.room-row .seg button {
+  flex: 1;
+}
 .seg button[aria-pressed='true'] {
   background: var(--ink);
   color: var(--paper);
@@ -1008,9 +1015,34 @@ a {
 }
 .room-row {
   display: grid;
-  grid-template-columns: 56px 1fr;
+  grid-template-columns: 56px auto 110px auto;
   align-items: center;
+  justify-content: start;
   gap: 10px;
+}
+.room-row .room-size {
+  min-height: 38px;
+  font-size: 14px;
+}
+.room-row .room-mamad[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+@media (max-width: 720px) {
+  .room-row {
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px dotted var(--rule);
+  }
+  .room-row .eyebrow {
+    grid-column: 1 / -1;
+    text-align: start;
+  }
+  .room-row .seg {
+    grid-column: 1 / -1;
+  }
 }
 .room-row .eyebrow {
   text-align: center;

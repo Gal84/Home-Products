@@ -1,4 +1,4 @@
-import type { ApartmentProfile, BedroomUse, Priority } from '../types';
+import type { ApartmentProfile, AptType, BedroomUse, Priority } from '../types';
 
 /** One planned product. `p` is a mid-tier unit price in ₪ (Israeli retail, 2026). */
 export interface ItemTpl {
@@ -40,6 +40,12 @@ export const BEDROOM_LABEL: Record<BedroomUse, string> = {
   guest: 'חדר אורחים',
 };
 
+export const APT_TYPE_LABEL: Record<AptType, string> = {
+  regular: 'דירה רגילה',
+  garden: 'דירת גן',
+  penthouse: 'פנטהאוז',
+};
+
 export function defaultBedrooms(rooms: number): BedroomUse[] {
   const n = Math.max(0, rooms - 1);
   const uses: BedroomUse[] = [];
@@ -51,10 +57,18 @@ export function defaultBedrooms(rooms: number): BedroomUse[] {
   return uses;
 }
 
+// Defaults follow the owner's plan: Damri "Afek", Kiryat Bialik, building 3, floor 19, type A.
 export const DEFAULT_PROFILE: ApartmentProfile = {
   name: 'הדירה החדשה',
   rooms: 5,
+  aptType: 'regular',
+  floor: 19,
+  gardenArea: 0,
+  roofArea: 0,
+  duplex: false,
   bedrooms: defaultBedrooms(5),
+  bedroomSizes: ['3.71×3.37', '3.61×4.05', '2.87×3.35', '2.95×3.60'],
+  mamad: 3,
   toilets: 3,
   showers: 1,
   bathtubs: 1,
@@ -76,12 +90,19 @@ export const DEFAULT_PROFILE: ApartmentProfile = {
 
 /** Fills fields added after a profile was saved, so older apartments keep working in the planner. */
 export function withDefaults(p: Partial<ApartmentProfile>): ApartmentProfile {
+  // A saved profile with the default room layout was built from DEFAULT_PROFILE, so its room
+  // sizes, safe room and floor still apply; any other layout starts those fields empty.
+  const sameLayout = p.bedrooms?.join() === DEFAULT_PROFILE.bedrooms.join();
   return {
     ...DEFAULT_PROFILE,
     evChargers: Math.min(1, p.parking ?? DEFAULT_PROFILE.parking),
     acType: 'split',
     cats: 0,
     dogs: 0,
+    aptType: 'regular',
+    floor: sameLayout ? DEFAULT_PROFILE.floor : 1,
+    bedroomSizes: sameLayout ? DEFAULT_PROFILE.bedroomSizes : [],
+    mamad: sameLayout ? DEFAULT_PROFILE.mamad : null,
     ...p,
   };
 }
@@ -143,6 +164,7 @@ export function buildTemplates(profile: ApartmentProfile): CategoryTpl[] {
   const p = withDefaults(profile);
   const cats: CategoryTpl[] = [];
   const pets = p.cats + p.dogs;
+  const high = p.aptType !== 'garden' && p.floor >= 8;
   const bedrooms = p.bedrooms.length;
   const wet = p.showers + p.bathtubs;
   const add = (c: Omit<CategoryTpl, 'color'>) => cats.push({ ...c, color: color(cats.length) });
@@ -278,7 +300,22 @@ export function buildTemplates(profile: ApartmentProfile): CategoryTpl[] {
   let kidsIdx = 0;
   p.bedrooms.forEach((use, i) => {
     const label = use === 'kids' && kidsCount > 1 ? `${BEDROOM_LABEL[use]} ${++kidsIdx}` : BEDROOM_LABEL[use];
-    add({ key: `bedroom-${i + 1}`, name: label, items: bedroomItems(use) });
+    const isMamad = p.mamad === i;
+    const note = [p.bedroomSizes[i]?.trim(), isMamad && 'ממ״ד'].filter(Boolean).join(' · ') || undefined;
+    add({
+      key: `bedroom-${i + 1}`,
+      name: label,
+      note,
+      items: [
+        ...bedroomItems(use),
+        ...(isMamad
+          ? [
+              { k: 'emergency', n: 'ערכת חירום לממ״ד (מים, פנס, סוללות, רדיו)', p: 350, pr: 'must' as Priority },
+              { k: 'mats', n: 'מזרנים מתקפלים לשהייה בממ״ד', p: 220, q: 2, pr: 'later' as Priority },
+            ]
+          : []),
+      ],
+    });
   });
 
   for (let i = 0; i < p.showers; i++) {
@@ -345,7 +382,9 @@ export function buildTemplates(profile: ApartmentProfile): CategoryTpl[] {
                 p: 1300,
                 q: p.balconyEnclosure,
                 pr: 'must' as Priority,
-                note: 'לבדוק היתר ואישור נציגות הבית לפני הזמנה',
+                note: high
+                  ? `לבדוק היתר ואישור נציגות. קומה ${p.floor} — זכוכית מחוסמת ופרופיל לעומסי רוח`
+                  : 'לבדוק היתר ואישור נציגות הבית לפני הזמנה',
               },
               { k: 'nets', n: 'רשתות נגד יתושים לסגירה', p: 1200, pr: 'important' as Priority },
             ]
@@ -364,6 +403,61 @@ export function buildTemplates(profile: ApartmentProfile): CategoryTpl[] {
     });
   }
 
+  if (p.aptType === 'garden' && p.gardenArea > 0) {
+    const g = p.gardenArea;
+    add({
+      key: 'garden',
+      name: 'גינה',
+      note: `${g} מ״ר`,
+      items: [
+        { k: 'drainage', n: 'בדיקת שיפועים וניקוז לפני עבודות', p: 1500, pr: 'must', note: 'לפני ריצוף או דשא' },
+        { k: 'irrigation', n: 'מערכת השקיה בטפטוף + מחשב השקיה', p: 2500, pr: 'must' },
+        { k: 'lawn', n: 'דשא (טבעי או סינטטי) — למ״ר', p: 150, q: Math.round(g * 0.55), pr: 'important' },
+        { k: 'paving', n: 'ריצוף / דק לפינת ישיבה — למ״ר', p: 350, q: Math.round(g * 0.3), pr: 'important' },
+        { k: 'plants', n: 'עצים, שיחים ושתילים', p: 3000, pr: 'important' },
+        { k: 'fence', n: 'גדר / מחיצת פרטיות וגדר חיה', p: 6000, pr: 'important' },
+        { k: 'pergola', n: 'פרגולה — למ״ר', p: 900, q: Math.min(24, Math.round(g * 0.25)), pr: 'important' },
+        { k: 'lounge', n: 'פינת ישיבה לגינה', p: 6000, pr: 'important' },
+        { k: 'dining', n: 'שולחן + 6 כיסאות גן', p: 3500, pr: 'later' },
+        { k: 'light', n: 'תאורת גינה ושבילים', p: 1500, pr: 'important' },
+        { k: 'tap', n: 'ברז גינה, צינור ועגלת צינור', p: 350, pr: 'must' },
+        { k: 'shed', n: 'מחסן גינה', p: 2500, pr: 'later' },
+        { k: 'grill', n: 'גריל / מטבח חוץ', p: 4000, pr: 'later' },
+        { k: 'alarm', n: 'מערכת אזעקה עם חיישני פתיחה', p: 2500, pr: 'important', note: 'קומת קרקע' },
+        { k: 'bars', n: 'סורגים / סורגי אקורדיון לחלונות', p: 700, q: bedrooms + 1, pr: 'important' },
+        ...(p.cats > 0
+          ? [{ k: 'cat-fence', n: 'גידור בטיחות לחתולים בגינה', p: 3000, pr: 'must' as Priority }]
+          : []),
+      ],
+    });
+  }
+
+  if (p.aptType === 'penthouse' && p.roofArea > 0) {
+    const r = p.roofArea;
+    add({
+      key: 'roof',
+      name: 'מרפסת גג',
+      note: `${r} מ״ר`,
+      items: [
+        { k: 'waterproof', n: 'בדיקת איטום של מומחה', p: 2000, pr: 'must', note: 'לפני הנחת דק ואדניות' },
+        { k: 'pergola', n: 'פרגולה / הצללה מתכווננת — למ״ר', p: 1100, q: Math.round(r * 0.35), pr: 'must' },
+        { k: 'deck', n: 'דק / ריצוף חוץ — למ״ר', p: 350, q: Math.round(r * 0.5), pr: 'important' },
+        { k: 'planters', n: 'אדניות גדולות וצמחייה', p: 4000, pr: 'important' },
+        { k: 'irrigation', n: 'השקיה בטפטוף לאדניות', p: 1800, pr: 'important' },
+        { k: 'lounge', n: 'פינת ישיבה גדולה לחוץ', p: 8000, pr: 'important' },
+        { k: 'dining', n: 'פינת אוכל חוץ ל-8', p: 5000, pr: 'important' },
+        { k: 'kitchen', n: 'מטבח חוץ / עמדת גריל', p: 9000, pr: 'later' },
+        { k: 'light', n: 'תאורת חוץ ואווירה', p: 2500, pr: 'important' },
+        { k: 'sails', n: 'מפרשי צל / שמשייה גדולה', p: 2500, pr: 'later' },
+        { k: 'shower', n: 'מקלחת חוץ', p: 1500, pr: 'later' },
+        { k: 'spa', n: "ג'קוזי / ספא", p: 25000, pr: 'later', note: 'לבדוק עומס תקרה עם קונסטרוקטור' },
+        ...(p.cats > 0
+          ? [{ k: 'cat-net', n: 'רשת בטיחות לחתולים לאורך המעקה', p: 3500, pr: 'must' as Priority }]
+          : []),
+      ],
+    });
+  }
+
   add({
     key: 'lighting',
     name: 'תאורה',
@@ -373,6 +467,7 @@ export function buildTemplates(profile: ApartmentProfile): CategoryTpl[] {
       { k: 'hall', n: 'תאורה למסדרון ולכניסה', p: 900, pr: 'important' },
       { k: 'floor', n: 'מנורה עומדת לסלון', p: 800, pr: 'later' },
       { k: 'wet', n: 'גופי תאורה לחדרים הרטובים', p: 350, q: p.toilets || wet, pr: 'must' },
+      ...(p.duplex ? [{ k: 'stairs', n: 'תאורת מדרגות LED', p: 1800, pr: 'important' as Priority }] : []),
     ],
   });
 
@@ -380,7 +475,13 @@ export function buildTemplates(profile: ApartmentProfile): CategoryTpl[] {
     key: 'curtains',
     name: 'וילונות ותריסים',
     items: [
-      { k: 'living', n: 'וילון בד לסלון (כולל מסילה)', p: 3500, pr: 'important' },
+      {
+        k: 'living',
+        n: 'וילון בד לסלון (כולל מסילה)',
+        p: p.aptType === 'penthouse' ? 5500 : 3500,
+        pr: 'important',
+        note: p.aptType === 'penthouse' ? 'חלונות גבוהים — למדוד גובה תקרה' : undefined,
+      },
       { k: 'bedrooms', n: 'וילון האפלה לחדר שינה', p: 1400, q: bedrooms, pr: 'must' },
       { k: 'install', n: 'מסילות והתקנה', p: 1200, pr: 'must' },
     ],
@@ -396,6 +497,9 @@ export function buildTemplates(profile: ApartmentProfile): CategoryTpl[] {
         { k: 'electric', n: 'חשמלאי — נקודות ושקעים נוספים', p: 3500, pr: 'important' },
         { k: 'shutters', n: 'חשמול תריסים', p: 1800, q: bedrooms + 1, pr: 'important' },
         { k: 'handyman', n: 'הנדימן — תליית מדפים, תמונות ווילונות', p: 1500, pr: 'important' },
+        ...(p.duplex
+          ? [{ k: 'stairs', n: 'שערי בטיחות ופסים נגד החלקה למדרגות', p: 900, pr: 'important' as Priority }]
+          : []),
         { k: 'paint', n: 'קיר דקורטיבי / צבע בגוון', p: 2500, pr: 'later' },
         { k: 'filter', n: 'מסנן מים ראשי לכל הבית', p: 3200, pr: 'later' },
         { k: 'movers', n: 'הובלה', p: 3500, pr: 'must' },
@@ -464,7 +568,7 @@ export function buildTemplates(profile: ApartmentProfile): CategoryTpl[] {
                 p: 350,
                 q: bedrooms + 2,
                 pr: 'must' as Priority,
-                note: 'חובה לפני שהחתולים נכנסים לדירה',
+                note: high ? `קומה ${p.floor} — חובה לפני שהחתולים נכנסים` : 'חובה לפני שהחתולים נכנסים לדירה',
               },
               ...(p.balconyArea > 0
                 ? [
