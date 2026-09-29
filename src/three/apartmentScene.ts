@@ -324,41 +324,95 @@ function rug(b: Builder, r: Rect, color: string, border: string) {
 type ArtStyle = 'circles' | 'blocks' | 'landscape' | 'lines';
 
 /** A framed print; rot 0 faces +z, π faces −z, π/2 faces +x, −π/2 faces −x. */
-type CatCoat = { base: string; patches?: [string, number, number, number, number][]; eyes: string };
+type CatKind = 'white' | 'black' | 'tabby';
+
+function tabbyStripes() {
+  const r = rand(21);
+  return canvasTexture(256, (g, s) => {
+    g.fillStyle = '#8f6c49';
+    g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 220; i++) {
+      g.fillStyle = r() < 0.5 ? 'rgba(196,160,112,0.35)' : 'rgba(70,52,36,0.3)';
+      g.fillRect(r() * s, r() * s, 2 + r() * 8, 1 + r() * 3);
+    }
+    for (let y = 0; y < s; y += 22 + r() * 10) {
+      g.strokeStyle = 'rgba(46,34,24,0.85)';
+      g.lineWidth = 5 + r() * 6;
+      g.beginPath();
+      g.moveTo(0, y);
+      for (let x = 0; x <= s; x += 32) g.lineTo(x, y + (r() - 0.5) * 12);
+      g.stroke();
+    }
+  });
+}
 
 /**
- * A small sitting cat facing −z (turn with `rot`). Patches are [color, x, y, z, radius] blobs for a
- * calico coat. Returns an animator that sways the tail.
+ * The owner's cats, lying in a loaf with front paws forward (facing −z; turn with `rot`):
+ * a long-haired white with blue eyes, a sleek short-haired black, and a long-haired brown
+ * tabby with white chest, belly, muzzle and paws. Returns an animator that sways the tail.
  */
-function cat(b: Builder, x: number, y: number, z: number, rot: number, coat: CatCoat, scale = 0.85) {
+function cat(b: Builder, x: number, y: number, z: number, rot: number, kind: CatKind, scale = 0.95) {
+  const look = {
+    white: { fur: '#f2f0eb', light: '#f7f5f1', ear: '#e6a6a8', nose: '#e39598', eyes: '#6fa6dc', fluffy: true },
+    black: { fur: '#1b1a19', light: '#211f1e', ear: '#3b2f2f', nose: '#2a2222', eyes: '#c9c24c', fluffy: false },
+    tabby: { fur: '#8f6c49', light: '#f1eee8', ear: '#c99494', nose: '#d4979a', eyes: '#d8901e', fluffy: true },
+  }[kind];
   const g = new THREE.Group();
-  const fur = b.mat(coat.base, 0.95);
-  const part = (geo: THREE.BufferGeometry, m: THREE.Material, px: number, py: number, pz: number, sx = 1, sy = 1, sz = 1) => {
+  const furMat =
+    kind === 'tabby'
+      ? new THREE.MeshStandardMaterial({ map: tabbyStripes(), roughness: 0.95 })
+      : b.mat(look.fur, kind === 'black' ? 0.55 : 0.95);
+  const plainFur = b.mat(look.fur, kind === 'black' ? 0.55 : 0.95);
+  const light = b.mat(look.light, 0.95);
+  const ball = new THREE.SphereGeometry(1, 20, 14);
+  const part = (m: THREE.Material, px: number, py: number, pz: number, sx: number, sy: number, sz: number, geo: THREE.BufferGeometry = ball) => {
     const mesh = new THREE.Mesh(geo, m);
     mesh.position.set(px, py, pz);
     mesh.scale.set(sx, sy, sz);
     g.add(mesh);
     return mesh;
   };
-  const ball = new THREE.SphereGeometry(1, 18, 14);
-  part(ball, fur, 0, 0.13, 0.01, 0.095, 0.13, 0.11);
-  part(ball, fur, 0, 0.075, 0.035, 0.12, 0.075, 0.12);
-  part(ball, fur, 0, 0.29, -0.045, 0.072, 0.068, 0.07);
-  part(ball, fur, 0, 0.268, -0.105, 0.035, 0.026, 0.028);
+  const fl = look.fluffy ? 1.12 : 0.92;
+  // Body lies along z; rotating the sphere puts its stripes across the back like tabby bands.
+  const body = part(furMat, 0, 0.095 * fl, 0.04, 0.12 * fl, 0.25, 0.095 * fl);
+  body.rotation.x = Math.PI / 2;
+  part(plainFur, 0.035, 0.1 * fl, 0.17, 0.085 * fl, 0.075 * fl, 0.1);
+  if (kind === 'tabby') part(light, 0, 0.05, 0.0, 0.1, 0.05, 0.2);
+  part(kind === 'tabby' ? light : plainFur, 0, 0.115, -0.15, 0.092 * fl, 0.088 * fl, 0.075 * fl);
+  // Head, cheeks, muzzle, nose, eyes, ears.
+  part(plainFur, 0, 0.2, -0.2, 0.072, 0.068, 0.068);
+  if (kind === 'tabby') part(furMat, 0, 0.235, -0.2, 0.06, 0.035, 0.055);
+  if (look.fluffy) for (const s of [-1, 1]) part(kind === 'tabby' ? light : plainFur, s * 0.05, 0.18, -0.205, 0.038, 0.036, 0.036);
+  part(kind === 'tabby' ? light : plainFur, 0, 0.18, -0.262, 0.036, 0.026, 0.026);
+  part(b.mat(look.nose, 0.6), 0, 0.192, -0.288, 0.009, 0.007, 0.006);
   for (const s of [-1, 1]) {
-    const ear = part(new THREE.ConeGeometry(0.026, 0.06, 4), fur, s * 0.042, 0.35, -0.04);
-    ear.rotation.z = -s * 0.25;
-    part(new THREE.CylinderGeometry(0.018, 0.02, 0.13, 8), fur, s * 0.034, 0.065, -0.07);
-    part(ball, b.mat(coat.eyes, 0.3, 0, { emissive: coat.eyes, emissiveIntensity: 0.25 }), s * 0.027, 0.3, -0.108, 0.012, 0.012, 0.008);
-    part(ball, b.mat('#141312', 0.4), s * 0.027, 0.3, -0.115, 0.005, 0.009, 0.004);
+    part(b.mat(look.eyes, 0.25, 0, { emissive: look.eyes, emissiveIntensity: 0.35 }), s * 0.027, 0.214, -0.258, 0.014, 0.013, 0.008);
+    part(b.mat('#141312', 0.3), s * 0.027, 0.214, -0.265, 0.005, 0.01, 0.004);
+    const ear = part(plainFur, s * 0.043, 0.268, -0.19, 1, 1, 1, new THREE.ConeGeometry(0.028, 0.062, 4));
+    ear.rotation.z = -s * 0.3;
+    const inner = part(b.mat(look.ear, 0.8), s * 0.041, 0.262, -0.198, 1, 1, 1, new THREE.ConeGeometry(0.016, 0.042, 4));
+    inner.rotation.z = -s * 0.3;
+    // Front legs stretched forward, white socks on the tabby.
+    const leg = part(plainFur, s * 0.04, 0.026, -0.225, 1, 1, 1, new THREE.CylinderGeometry(0.026, 0.028, 0.12, 10));
+    leg.rotation.x = Math.PI / 2;
+    part(kind === 'tabby' ? light : plainFur, s * 0.04, 0.026, -0.29, 0.03, 0.025, 0.036);
   }
-  part(ball, b.mat('#c98f8a', 0.6), 0, 0.28, -0.132, 0.008, 0.006, 0.005);
-  for (const [c, px, py, pz, pr] of coat.patches ?? []) part(ball, b.mat(c, 0.95), px, py, pz, pr, pr, pr);
+  // Tail: a chain of spheres, bushy for the long-haired cats, ringed on the tabby.
   const tailPivot = new THREE.Group();
-  tailPivot.position.set(0, 0.03, 0.12);
-  const tailCurve = new THREE.CatmullRomCurve3([V(0, 0, 0), V(0.07, -0.005, 0.03), V(0.13, -0.01, -0.03), V(0.12, -0.01, -0.12)]);
-  const tail = new THREE.Mesh(new THREE.TubeGeometry(tailCurve, 20, 0.016, 8), fur);
-  tailPivot.add(tail);
+  tailPivot.position.set(0.02, 0.045, 0.27);
+  const tailCurve = new THREE.CatmullRomCurve3([V(0, 0, 0), V(0.08, 0, 0.07), V(0.17, -0.01, 0.03), V(0.2, -0.015, -0.08), V(0.17, -0.02, -0.19)]);
+  tailPivot.add(new THREE.Mesh(new THREE.TubeGeometry(tailCurve, 24, look.fluffy ? 0.024 : 0.016, 10), plainFur));
+  const dark = b.mat('#3b2c1f', 0.95);
+  const n = look.fluffy ? 26 : 0;
+  for (let i = 0; i < n; i++) {
+    const p = tailCurve.getPointAt(i / (n - 1));
+    const rad = 0.036 * (1 - (i / n) * 0.4);
+    const m = kind === 'tabby' ? (i % 4 < 2 ? plainFur : dark) : plainFur;
+    const sph = new THREE.Mesh(ball, m);
+    sph.position.copy(p);
+    sph.scale.setScalar(rad);
+    tailPivot.add(sph);
+  }
   g.add(tailPivot);
   g.position.set(x, y, z);
   g.rotation.y = rot;
@@ -366,8 +420,7 @@ function cat(b: Builder, x: number, y: number, z: number, rot: number, coat: Cat
   b.add(g);
   const phase = x * 3.1 + z;
   return (t: number) => {
-    tailPivot.rotation.y = Math.sin(t * 1.3 + phase) * 0.35;
-    tailPivot.rotation.x = Math.sin(t * 0.9 + phase) * 0.08;
+    tailPivot.rotation.y = Math.sin(t * 1.1 + phase) * 0.3;
   };
 }
 
@@ -734,23 +787,12 @@ function buildApartment(b: Builder, lights: THREE.Group): ((t: number) => void)[
   artwork(b, 5.48, 1.65, 10.9, Math.PI / 2, 0.5, 0.7, ['#e0a24a', '#46607a', '#b5522b'], 'circles', '#f6f2ec');
   artwork(b, 5.48, 1.65, 11.7, Math.PI / 2, 0.5, 0.7, ['#b5522b', '#e0a24a', '#46607a', '#7e8c6a'], 'blocks', '#f6f2ec');
 
-  // ── The three cats, perched on ledges ──
-  // Stone sill on the living-room window for the black cat.
+  // ── The owner's three cats ──
+  // Stone sill on the living-room window.
   b.box(0.26, 0.03, 1.3, b.mat('#e4ddd1', 0.5), 0.17, 0.88, 1.2);
-  animators.push(cat(b, 3.72, 0.82, 3.5, Math.PI / 2, { base: '#f4f1ea', eyes: '#7fb4d6' }));
-  animators.push(cat(b, 0.2, 0.91, 1.25, -Math.PI / 2, { base: '#1d1c1b', eyes: '#e2bf45' }));
-  animators.push(
-    cat(b, 0.32, 0.54, 5.05, -Math.PI / 2, {
-      base: '#f4f1ea',
-      eyes: '#8cbf5a',
-      patches: [
-        ['#c9803f', 0.05, 0.16, 0.05, 0.075],
-        ['#1d1c1b', -0.05, 0.1, 0.07, 0.06],
-        ['#c9803f', -0.035, 0.32, -0.03, 0.05],
-        ['#1d1c1b', 0.045, 0.31, -0.02, 0.04],
-      ],
-    }),
-  );
+  animators.push(cat(b, 3.72, 0.82, 3.75, 0, 'white'));
+  animators.push(cat(b, 1.6, 0.4, 2.25, Math.PI, 'tabby'));
+  animators.push(cat(b, 13.45, 0.58, 6.95, Math.PI / 2, 'black'));
 
   // ── Lobby outside the front door ──
   b.box(0.9, 2.2, 0.1, b.mat('#8b8f8e', 0.35, 0.6), 3.4, 0, 11.15);
