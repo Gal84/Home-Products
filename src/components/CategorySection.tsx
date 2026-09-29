@@ -1,5 +1,5 @@
 import type { Category, Item } from '../types';
-import { catNo, lineTotal, num, PRIORITY_LABEL, shekel, totals } from '../lib/format';
+import { bidi, catNo, lineTotal, num, PRIORITY_LABEL, shekel, totals } from '../lib/format';
 import { IconCheck, IconChevron, IconDown, IconEdit, IconPlus, IconUp } from './Icons';
 
 interface Props {
@@ -39,7 +39,7 @@ export function CategorySection(props: Props) {
           </h2>
           <div className="meta">
             <span>{catNo(index)}</span>
-            {c.note && <span>{c.note}</span>}
+            {c.note && <span>{bidi(c.note)}</span>}
             <span>
               {num(t.boughtCount)}/{num(t.count)} נרכשו
             </span>
@@ -108,8 +108,8 @@ function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; o
         <IconCheck />
       </button>
       <button className="name" onClick={onOpen}>
-        <b>{item.name}</b>
-        {sub && <small>{sub}</small>}
+        <b>{bidi(item.name)}</b>
+        {sub && <small>{bidi(sub)}</small>}
       </button>
       <span className={`prio ${item.priority}`}>{PRIORITY_LABEL[item.priority]}</span>
       <span className="calc">

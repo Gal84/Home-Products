@@ -6,6 +6,12 @@ export const shekel = (n: number) => `₪${nf.format(Math.round(n))}`;
 export const num = (n: number) => nf.format(n);
 export const catNo = (i: number) => `N°${String(i + 1).padStart(2, '0')}`;
 
+/**
+ * Keeps dimensions like "150×90" in their written order inside Hebrew text: without an isolate the
+ * bidi algorithm renders them as "90×150". Apply at display time only; stored text stays plain.
+ */
+export const bidi = (text: string) => text.replace(/\d+(?:[.,]\d+)?(?:\s*[×xX*]\s*\d+(?:[.,]\d+)?)+/g, '\u2066$&\u2069');
+
 export const PRIORITY_LABEL: Record<Priority, string> = {
   must: 'חובה',
   important: 'חשוב',

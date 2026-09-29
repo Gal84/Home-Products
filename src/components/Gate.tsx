@@ -7,6 +7,7 @@ import { emptyHome } from '../lib/store';
 import { homeCache } from '../lib/storage';
 import { createHome, HomeNotFound, loadHome, supabaseConfigured } from '../lib/supabase';
 import { PlannerWizard } from './PlannerWizard';
+import { Apartment3D } from './Apartment3D';
 
 interface Props {
   onEnter: (code: string) => void;
@@ -68,7 +69,7 @@ export function Gate({ onEnter, notice }: Props) {
     <div className="gate">
       <section className="gate-art">
         <div className="eyebrow">N°01 — קטלוג רכישות לדירה חדשה</div>
-        <FloorPlan />
+        <Apartment3D fallback={<FloorPlan />} />
         <h1>
           דירה
           <br />

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { IconClose } from './Icons';
+import { bidi } from '../lib/format';
 
 interface Props {
   eyebrow?: string;
@@ -34,7 +35,7 @@ export function Sheet({ eyebrow, title, onClose, children, footer, wide }: Props
         <div className="sheet-head">
           <div>
             {eyebrow && <div className="eyebrow">{eyebrow}</div>}
-            <h2>{title}</h2>
+            <h2>{bidi(title)}</h2>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="סגירה">
             <IconClose />

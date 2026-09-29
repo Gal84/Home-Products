@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Category, HomeData, Item } from '../types';
-import { catNo, num, shekel, totals, type Totals } from '../lib/format';
+import { bidi, catNo, num, shekel, totals, type Totals } from '../lib/format';
 import type { SyncStatus } from '../lib/useHome';
 import { IconPlan, IconSettings, IconShare } from './Icons';
 
@@ -98,7 +98,7 @@ export function Masthead({ data, cats, items, status, onRename, onPlanner, onSet
           </h1>
           <div className="specs">
             {specs.map((s) => (
-              <span key={s}>{s}</span>
+              <span key={s}>{bidi(s)}</span>
             ))}
           </div>
           <p className="lede">
