@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 /*
  * A furnished 3D model of the owner's apartment (Damri "Afek", type A, floor 19), with a camera that
@@ -323,6 +324,53 @@ function rug(b: Builder, r: Rect, color: string, border: string) {
 type ArtStyle = 'circles' | 'blocks' | 'landscape' | 'lines';
 
 /** A framed print; rot 0 faces +z, π faces −z, π/2 faces +x, −π/2 faces −x. */
+type CatCoat = { base: string; patches?: [string, number, number, number, number][]; eyes: string };
+
+/**
+ * A small sitting cat facing −z (turn with `rot`). Patches are [color, x, y, z, radius] blobs for a
+ * calico coat. Returns an animator that sways the tail.
+ */
+function cat(b: Builder, x: number, y: number, z: number, rot: number, coat: CatCoat, scale = 0.85) {
+  const g = new THREE.Group();
+  const fur = b.mat(coat.base, 0.95);
+  const part = (geo: THREE.BufferGeometry, m: THREE.Material, px: number, py: number, pz: number, sx = 1, sy = 1, sz = 1) => {
+    const mesh = new THREE.Mesh(geo, m);
+    mesh.position.set(px, py, pz);
+    mesh.scale.set(sx, sy, sz);
+    g.add(mesh);
+    return mesh;
+  };
+  const ball = new THREE.SphereGeometry(1, 18, 14);
+  part(ball, fur, 0, 0.13, 0.01, 0.095, 0.13, 0.11);
+  part(ball, fur, 0, 0.075, 0.035, 0.12, 0.075, 0.12);
+  part(ball, fur, 0, 0.29, -0.045, 0.072, 0.068, 0.07);
+  part(ball, fur, 0, 0.268, -0.105, 0.035, 0.026, 0.028);
+  for (const s of [-1, 1]) {
+    const ear = part(new THREE.ConeGeometry(0.026, 0.06, 4), fur, s * 0.042, 0.35, -0.04);
+    ear.rotation.z = -s * 0.25;
+    part(new THREE.CylinderGeometry(0.018, 0.02, 0.13, 8), fur, s * 0.034, 0.065, -0.07);
+    part(ball, b.mat(coat.eyes, 0.3, 0, { emissive: coat.eyes, emissiveIntensity: 0.25 }), s * 0.027, 0.3, -0.108, 0.012, 0.012, 0.008);
+    part(ball, b.mat('#141312', 0.4), s * 0.027, 0.3, -0.115, 0.005, 0.009, 0.004);
+  }
+  part(ball, b.mat('#c98f8a', 0.6), 0, 0.28, -0.132, 0.008, 0.006, 0.005);
+  for (const [c, px, py, pz, pr] of coat.patches ?? []) part(ball, b.mat(c, 0.95), px, py, pz, pr, pr, pr);
+  const tailPivot = new THREE.Group();
+  tailPivot.position.set(0, 0.03, 0.12);
+  const tailCurve = new THREE.CatmullRomCurve3([V(0, 0, 0), V(0.07, -0.005, 0.03), V(0.13, -0.01, -0.03), V(0.12, -0.01, -0.12)]);
+  const tail = new THREE.Mesh(new THREE.TubeGeometry(tailCurve, 20, 0.016, 8), fur);
+  tailPivot.add(tail);
+  g.add(tailPivot);
+  g.position.set(x, y, z);
+  g.rotation.y = rot;
+  g.scale.setScalar(scale);
+  b.add(g);
+  const phase = x * 3.1 + z;
+  return (t: number) => {
+    tailPivot.rotation.y = Math.sin(t * 1.3 + phase) * 0.35;
+    tailPivot.rotation.x = Math.sin(t * 0.9 + phase) * 0.08;
+  };
+}
+
 function artwork(
   b: Builder,
   x: number,
@@ -366,7 +414,8 @@ function artwork(
 
 // ─── The apartment ──────────────────────────────────────────────────────────
 
-function buildApartment(b: Builder, lights: THREE.Group) {
+function buildApartment(b: Builder, lights: THREE.Group): ((t: number) => void)[] {
+  const animators: ((t: number) => void)[] = [];
   const wall = b.mat('#efe9df', 0.95);
   const accentWall = b.mat('#d9c9b3', 0.95);
   const glass = new THREE.MeshStandardMaterial({ color: '#cfe0e6', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.16 });
@@ -507,13 +556,25 @@ function buildApartment(b: Builder, lights: THREE.Group) {
   const quartz = b.mat('#f4f1ec', 0.35);
   b.box(0.62, 0.88, 3.8, cab, 6.66, 0, 2.6, 0.01);
   b.box(0.66, 0.04, 3.8, quartz, 6.64, 0.88, 2.6);
-  b.box(0.62, 2.3, 1.2, cab, 6.66, 0, 0.6, 0.01);
+  // Silver four-door fridge in a tall surround (cabinet above).
+  b.box(0.62, 0.42, 1.2, cab, 6.66, 1.88, 0.6, 0.01);
+  b.box(0.62, 1.88, 0.08, cab, 6.66, 0, 0.04);
+  b.box(0.62, 1.88, 0.08, cab, 6.66, 0, 1.16);
+  const steel = b.mat('#c3c7c9', 0.28, 0.75);
+  const steelDark = b.mat('#8f9496', 0.35, 0.6);
+  b.box(0.68, 1.84, 1.02, steel, 6.64, 0.02, 0.6, 0.012);
+  b.box(0.004, 0.02, 1.0, steelDark, 6.298, 0.98, 0.6);
+  b.box(0.004, 0.02, 1.0, steelDark, 6.298, 0.56, 0.6);
+  b.box(0.004, 0.84, 0.006, steelDark, 6.298, 1.0, 0.6);
+  for (const z of [0.54, 0.66]) b.box(0.03, 0.55, 0.018, b.mat('#e1e4e5', 0.2, 0.85), 6.28, 1.15, z);
+  for (const y of [0.88, 0.47]) b.box(0.03, 0.018, 0.55, b.mat('#e1e4e5', 0.2, 0.85), 6.28, y, 0.6);
+  b.box(0.004, 0.14, 0.1, b.mat('#1b1c1d', 0.3), 6.297, 1.45, 0.4);
   b.box(0.35, 0.7, 2.6, cab, 6.8, 1.55, 3.1, 0.01);
   b.box(0.5, 0.02, 0.6, b.mat('#1b1a19', 0.2, 0.3), 6.62, 0.92, 3.4);
   b.box(0.9, 0.88, 1.5, b.mat('#3f4a44', 0.7), 5.0, 0, 2.75, 0.01);
 
   // Door seams and small, slim brass pulls.
-  const brass = b.mat('#b08d57', 0.3, 0.8);
+  const brass = b.mat('#c7a064', 0.28, 0.85);
   const seam = b.mat('#8f877b', 0.8);
   const doors = (x: number, z0: number, z1: number, n: number, y0: number, h: number, handleY: number, facing: 1 | -1, vertical = false) => {
     const w = (z1 - z0) / n;
@@ -526,7 +587,7 @@ function buildApartment(b: Builder, lights: THREE.Group) {
     }
   };
   doors(6.345, 0.7, 4.5, 6, 0, 0.88, 0.8, -1);
-  doors(6.345, 0, 1.2, 2, 0, 2.3, 1.15, -1, true);
+  doors(6.345, 0.08, 1.12, 2, 1.88, 0.42, 1.93, -1);
   doors(6.62, 1.8, 4.4, 4, 1.55, 0.7, 1.6, -1);
   doors(5.455, 2.0, 3.5, 3, 0, 0.88, 0.8, 1);
 
@@ -673,66 +734,271 @@ function buildApartment(b: Builder, lights: THREE.Group) {
   artwork(b, 5.48, 1.65, 10.9, Math.PI / 2, 0.5, 0.7, ['#e0a24a', '#46607a', '#b5522b'], 'circles', '#f6f2ec');
   artwork(b, 5.48, 1.65, 11.7, Math.PI / 2, 0.5, 0.7, ['#b5522b', '#e0a24a', '#46607a', '#7e8c6a'], 'blocks', '#f6f2ec');
 
+  // ── The three cats, perched on ledges ──
+  // Stone sill on the living-room window for the black cat.
+  b.box(0.26, 0.03, 1.3, b.mat('#e4ddd1', 0.5), 0.17, 0.88, 1.2);
+  animators.push(cat(b, 3.72, 0.82, 3.5, Math.PI / 2, { base: '#f4f1ea', eyes: '#7fb4d6' }));
+  animators.push(cat(b, 0.2, 0.91, 1.25, -Math.PI / 2, { base: '#1d1c1b', eyes: '#e2bf45' }));
+  animators.push(
+    cat(b, 0.32, 0.54, 5.05, -Math.PI / 2, {
+      base: '#f4f1ea',
+      eyes: '#8cbf5a',
+      patches: [
+        ['#c9803f', 0.05, 0.16, 0.05, 0.075],
+        ['#1d1c1b', -0.05, 0.1, 0.07, 0.06],
+        ['#c9803f', -0.035, 0.32, -0.03, 0.05],
+        ['#1d1c1b', 0.045, 0.31, -0.02, 0.04],
+      ],
+    }),
+  );
+
   // ── Lobby outside the front door ──
   b.box(0.9, 2.2, 0.1, b.mat('#8b8f8e', 0.35, 0.6), 3.4, 0, 11.15);
   b.box(0.1, 0.16, 0.02, b.mat('#8b8f8e', 0.35, 0.6), 1.98, 1.35, 8.47);
   plant(b, -0.25, 9.1, 1.1);
+  return animators;
 }
 
-// ─── City outside (floor 19) ────────────────────────────────────────────────
+// ─── Outside: the Afek nature reserve at sunset (floor 19) ─────────────────
 
-function buildCity(scene: THREE.Scene) {
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), new THREE.MeshLambertMaterial({ color: '#bfb4a2' }));
+const GROUND_Y = -58;
+
+function meadow() {
+  const r = rand(77);
+  return canvasTexture(1024, (g, s) => {
+    g.fillStyle = '#5d6e41';
+    g.fillRect(0, 0, s, s);
+    const tones = ['#6d7c48', '#4f5f37', '#7a7650', '#617449', '#566a3c', '#83805a'];
+    for (let i = 0; i < 900; i++) {
+      g.fillStyle = tones[i % tones.length];
+      g.globalAlpha = 0.18 + r() * 0.3;
+      g.beginPath();
+      g.ellipse(r() * s, r() * s, 6 + r() * 40, 4 + r() * 22, r() * Math.PI, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.globalAlpha = 1;
+  });
+}
+
+function facade(lit: boolean, seed: number) {
+  const r = rand(seed);
+  return canvasTexture(256, (g, s) => {
+    const rows = 16;
+    const cols = 8;
+    const h = s / rows;
+    const w = s / cols;
+    g.fillStyle = lit ? '#000' : '#f1eee8';
+    g.fillRect(0, 0, s, s);
+    for (let y = 0; y < rows; y++)
+      for (let x = 0; x < cols; x++) {
+        const on = r() < 0.55;
+        if (lit) {
+          if (!on) continue;
+          g.fillStyle = `rgb(255,${190 + r() * 40},${120 + r() * 50})`;
+        } else g.fillStyle = on ? '#8d8272' : '#59616a';
+        g.fillRect(x * w + w * 0.18, y * h + h * 0.22, w * 0.64, h * 0.5);
+        if (!lit) {
+          g.fillStyle = '#d9d5ce';
+          g.fillRect(x * w, y * h + h * 0.8, w, h * 0.12);
+        }
+      }
+  });
+}
+
+function blob(cx: number, cz: number, rx: number, rz: number, seed: number, wobble = 0.22) {
+  const r = rand(seed);
+  const shape = new THREE.Shape();
+  const n = 28;
+  const phase = r() * 6;
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const k = 1 + Math.sin(a * 3 + phase) * wobble * 0.6 + (r() - 0.5) * wobble * 0.5;
+    const x = cx + Math.cos(a) * rx * k;
+    const y = cz + Math.sin(a) * rz * k;
+    if (i === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  const geo = new THREE.ShapeGeometry(shape);
+  geo.rotateX(Math.PI / 2);
+  return geo;
+}
+
+/** Flat strip following a curve on the ground (stream, road, light trails). */
+function ribbon(points: THREE.Vector3[], width: number, y: number) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const n = 120;
+  const pos: number[] = [];
+  const idx: number[] = [];
+  for (let i = 0; i <= n; i++) {
+    const p = curve.getPointAt(i / n);
+    const t = curve.getTangentAt(i / n);
+    const nx = -t.z;
+    const nz = t.x;
+    const len = Math.hypot(nx, nz) || 1;
+    pos.push(p.x + (nx / len) * width / 2, y, p.z + (nz / len) * width / 2, p.x - (nx / len) * width / 2, y, p.z - (nz / len) * width / 2);
+    if (i < n) {
+      const a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function tower(scene: THREE.Scene, x: number, z: number, w: number, d: number, top: number, seed: number, crown = true) {
+  const h = top - GROUND_Y;
+  const map = facade(false, seed);
+  map.repeat.set(w / 10, h / 20);
+  const emissiveMap = facade(true, seed);
+  emissiveMap.repeat.copy(map.repeat);
+  const side = new THREE.MeshLambertMaterial({ map, emissiveMap, emissive: '#ffd9a8', emissiveIntensity: 0.55 });
+  const roof = new THREE.MeshLambertMaterial({ color: '#d8d2c8' });
+  // Box faces: +x, −x, +y (roof), −y, +z, −z.
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [side, side, roof, roof, side, side]);
+  body.position.set(x, GROUND_Y + h / 2, z);
+  scene.add(body);
+  if (crown) {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 8, d + 0.6), new THREE.MeshLambertMaterial({ color: '#2d3136' }));
+    c.position.set(x, top - 4, z);
+    scene.add(c);
+  }
+}
+
+function buildLandscape(scene: THREE.Scene) {
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(2600, 2600), new THREE.MeshLambertMaterial({ map: meadow() }));
+  (ground.material as THREE.MeshLambertMaterial).map!.repeat.set(26, 26);
   ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -58;
+  ground.position.y = GROUND_Y;
   scene.add(ground);
-  const sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 500), new THREE.MeshLambertMaterial({ color: '#9fb4b9' }));
-  sea.rotation.x = -Math.PI / 2;
-  sea.position.set(-150, -57.8, -420);
-  scene.add(sea);
-  const r = rand(1234);
+
+  // Ponds of the reserve, north and west of the towers, with muddy rims.
+  // Shape geometry lies face-down after rotateX, so render both sides.
+  const mud = new THREE.MeshLambertMaterial({ color: '#5a5436', side: THREE.DoubleSide });
+  const water = new THREE.MeshLambertMaterial({ color: '#93b4cc', emissive: '#6d93b3', emissiveIntensity: 0.35, side: THREE.DoubleSide });
+  const ponds: [number, number, number, number][] = [
+    [-30, -105, 44, 20],
+    [70, -135, 78, 30],
+    [175, -95, 36, 16],
+    [-140, -170, 62, 26],
+    [20, -225, 46, 20],
+    [190, -205, 58, 22],
+    [-220, -95, 32, 15],
+  ];
+  ponds.forEach(([x, z, rx, rz], i) => {
+    const rim = new THREE.Mesh(blob(x, z, rx + 5, rz + 4, i + 10), mud);
+    rim.position.y = GROUND_Y + 0.05;
+    const pond = new THREE.Mesh(blob(x, z, rx, rz, i + 10), water);
+    pond.position.y = GROUND_Y + 0.12;
+    scene.add(rim, pond);
+  });
+  // Winding stream.
+  const stream = new THREE.Mesh(
+    ribbon([V(-420, 0, -60), V(-260, 0, -95), V(-170, 0, -70), V(-90, 0, -120), V(-60, 0, -200), V(-120, 0, -300), V(-60, 0, -420)], 7, GROUND_Y + 0.1),
+    new THREE.MeshLambertMaterial({ color: '#7d93a0', side: THREE.DoubleSide }),
+  );
+  scene.add(stream);
+
+  // Road between the towers and the reserve, with red and white light trails.
+  const roadPts = [V(-600, 0, -30), V(-200, 0, -42), V(0, 0, -48), V(200, 0, -40), V(420, 0, -10), V(700, 0, 30)];
+  scene.add(new THREE.Mesh(ribbon(roadPts, 12, GROUND_Y + 0.15), new THREE.MeshLambertMaterial({ color: '#3b3a38', side: THREE.DoubleSide })));
+  const trail = (off: number, color: string) => {
+    const pts = roadPts.map((p) => V(p.x, 0, p.z + off));
+    scene.add(new THREE.Mesh(ribbon(pts, 0.8, GROUND_Y + 0.25), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide })));
+  };
+  trail(-3, '#ff4b36');
+  trail(-1.5, '#ff7a55');
+  trail(2.5, '#fff1d0');
+
+  // The project's towers: ours below the flat, three siblings in a row.
+  tower(scene, 7.4, 5.3, 17.5, 17.5, -0.35, 1, false);
+  tower(scene, -48, 16, 24, 20, 20, 2);
+  tower(scene, 44, 26, 24, 20, 17, 3);
+  tower(scene, 76, 40, 22, 20, 18, 4);
+  // Existing mid-rise neighbourhood to the south, and the distant city.
+  const r = rand(991);
   const geo = new THREE.BoxGeometry(1, 1, 1);
   geo.translate(0, 0.5, 0);
-  const palette = ['#e2d9cc', '#d6ccbd', '#cbbfae', '#e9e2d7', '#bfb3a2'].map((c) => new THREE.MeshLambertMaterial({ color: c }));
-  // Floor 19 is ~58 m up: most of the city sits below eye level, with a few towers further out.
-  for (let i = 0; i < 190; i++) {
+  const shades = ['#ece8e1', '#d9d4cc', '#c7c1b7', '#b9b3a9'].map((c) => new THREE.MeshLambertMaterial({ color: c }));
+  for (let i = 0; i < 70; i++) {
+    const x = -260 + r() * 520;
+    const z = 70 + r() * 220;
+    const m = new THREE.Mesh(geo, shades[i % shades.length]);
+    m.scale.set(16 + r() * 16, 18 + r() * 30, 14 + r() * 12);
+    m.position.set(x, GROUND_Y, z);
+    scene.add(m);
+  }
+  for (let i = 0; i < 160; i++) {
     const a = r() * Math.PI * 2;
-    const d = 75 + r() * 330;
-    const x = 7 + Math.cos(a) * d;
-    const z = 5 + Math.sin(a) * d;
-    const tower = d > 170 && r() < 0.12;
-    const h = tower ? 60 + r() * 25 : 8 + r() * 34;
-    const m = new THREE.Mesh(geo, palette[i % palette.length]);
-    m.scale.set(12 + r() * 18, h, 12 + r() * 18);
-    m.position.set(x, -58, z);
-    m.rotation.y = r() * Math.PI;
+    const d = 520 + r() * 420;
+    const m = new THREE.Mesh(geo, shades[i % shades.length]);
+    m.scale.set(14 + r() * 20, 10 + r() * 38, 14 + r() * 16);
+    m.position.set(Math.cos(a) * d, GROUND_Y, Math.sin(a) * d);
     scene.add(m);
   }
-  const hill = new THREE.MeshLambertMaterial({ color: '#a9a58e' });
-  for (const [x, z, s] of [
-    [-420, 260, 240],
-    [-200, 420, 200],
-    [120, 520, 260],
-  ]) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), hill);
-    m.scale.set(s, s * 0.28, s * 0.7);
-    m.position.set(x, -60, z);
-    scene.add(m);
+  // Trees: palms along the road, eucalyptus clumps in the reserve.
+  const leaf = new THREE.MeshLambertMaterial({ color: '#3f5230' });
+  const dark = new THREE.MeshLambertMaterial({ color: '#2f3d25' });
+  for (let i = 0; i < 26; i++) {
+    const t = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), leaf);
+    t.scale.set(4, 3, 4);
+    t.position.set(-120 + i * 12 + r() * 4, GROUND_Y + 7, -30 + r() * 6);
+    scene.add(t);
   }
-  // Sky dome with a warm gradient.
+  for (let i = 0; i < 14; i++) {
+    const side = i % 2 ? 1 : -1;
+    const cx = side * (260 + r() * 200);
+    const cz = -60 - r() * 380;
+    for (let j = 0; j < 4; j++) {
+      const t = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), dark);
+      t.scale.set(7 + r() * 5, 6 + r() * 5, 7 + r() * 5);
+      t.position.set(cx + (r() - 0.5) * 16, GROUND_Y + 8 + r() * 6, cz + (r() - 0.5) * 16);
+      scene.add(t);
+    }
+  }
+
+  // Sunset sky: dusky blue overhead, amber at the horizon, drifting clouds.
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(900, 32, 16),
+    new THREE.SphereGeometry(1400, 32, 16),
     new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
-      uniforms: { top: { value: new THREE.Color('#b9cdd6') }, bottom: { value: new THREE.Color('#f3e8d8') } },
+      uniforms: {
+        top: { value: new THREE.Color('#7383b3') },
+        mid: { value: new THREE.Color('#eeac7c') },
+        bottom: { value: new THREE.Color('#f7cb92') },
+      },
       vertexShader: 'varying float h; void main(){ h = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
       fragmentShader:
-        'uniform vec3 top; uniform vec3 bottom; varying float h; void main(){ gl_FragColor = vec4(mix(bottom, top, smoothstep(-0.05, 0.45, h)), 1.0); }',
+        'uniform vec3 top; uniform vec3 mid; uniform vec3 bottom; varying float h;' +
+        'void main(){ vec3 c = mix(bottom, mid, smoothstep(-0.02, 0.12, h)); c = mix(c, top, smoothstep(0.12, 0.55, h)); gl_FragColor = vec4(c, 1.0);\n' +
+        '#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}',
     }),
   );
   scene.add(sky);
+  const cloudTex = canvasTexture(256, (g, s) => {
+    const cr = rand(5);
+    for (let i = 0; i < 26; i++) {
+      const x = s * 0.15 + cr() * s * 0.7;
+      const y = s * 0.4 + cr() * s * 0.2;
+      const rad = s * (0.06 + cr() * 0.1);
+      const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+      grd.addColorStop(0, 'rgba(255,170,110,0.75)');
+      grd.addColorStop(1, 'rgba(250,140,95,0)');
+      g.fillStyle = grd;
+      g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+  });
+  for (let i = 0; i < 12; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, fog: false, depthWrite: false, transparent: true, opacity: 0.95 }));
+    const a = -Math.PI * 0.95 + (i / 12) * Math.PI * 1.4;
+    sp.position.set(Math.cos(a) * 1100, 90 + r() * 170, Math.sin(a) * 1100);
+    sp.scale.set(420 + r() * 300, 140 + r() * 60, 1);
+    scene.add(sp);
+  }
 }
 
 // ─── Camera path ────────────────────────────────────────────────────────────
@@ -815,14 +1081,21 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn): () => 
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog('#efe6d8', 60, 520);
+  scene.fog = new THREE.Fog('#e6cfb4', 260, 1300);
 
-  const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 2000);
+  const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 3000);
 
-  const hemi = new THREE.HemisphereLight('#fff4e6', '#b9a992', 1.2);
+  // Soft studio reflections so steel, brass and glass read as metal instead of black.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTex;
+  scene.environmentIntensity = 0.45;
+
+  const hemi = new THREE.HemisphereLight('#ffe9d2', '#a4a27c', 0.95);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight('#ffe2bd', 2.6);
-  sun.position.set(-9, 16, -12);
+  // Low, warm evening sun from the west-north-west over the reserve.
+  const sun = new THREE.DirectionalLight('#ffd3a3', 2.6);
+  sun.position.set(-15, 11, -9);
   sun.target.position.set(7, 0, 5);
   sun.castShadow = true;
   sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
@@ -830,15 +1103,15 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn): () => 
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.03;
   scene.add(sun, sun.target);
-  const fill = new THREE.DirectionalLight('#dfe8ff', 0.5);
+  const fill = new THREE.DirectionalLight('#c9d0ee', 0.55);
   fill.position.set(18, 10, 20);
   scene.add(fill);
 
   const lights = new THREE.Group();
   const b = new Builder();
-  buildApartment(b, lights);
+  const animators = buildApartment(b, lights);
   scene.add(b.group, lights);
-  buildCity(scene);
+  buildLandscape(scene);
 
   const path = makePath();
   let lastLabel = '';
@@ -886,6 +1159,7 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn): () => 
     if (!visible || document.hidden) return;
     clock += dt;
     place(clock);
+    for (const a of animators) a(clock);
     renderer.render(scene, camera);
   };
 
@@ -910,6 +1184,8 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn): () => 
         });
       }
     });
+    envTex.dispose();
+    pmrem.dispose();
     renderer.dispose();
     renderer.domElement.remove();
   };
