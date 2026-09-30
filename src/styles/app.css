@@ -1086,6 +1086,7 @@ a {
   letter-spacing: -0.03em;
 }
 .apt3d {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   position: relative;
   flex: 1;
   min-height: 320px;
@@ -1093,7 +1094,7 @@ a {
   border: 1px solid var(--rule-strong);
   overflow: hidden;
   opacity: 0;
-  transition: opacity 0.8s ease;
+  transition: opacity 0.9s var(--ease-out);
 }
 .apt3d.ready {
   opacity: 1;
@@ -1108,15 +1109,40 @@ a {
   width: 100% !important;
   height: 100% !important;
   display: block;
+  /* The first frame comes into focus rather than popping in. */
+  filter: blur(10px);
+  transform: scale(1.04);
+  transition:
+    filter 1.4s var(--ease-out),
+    transform 1.8s var(--ease-out);
+}
+.apt3d.ready canvas {
+  filter: none;
+  transform: none;
+}
+/* A soft lens vignette pulls the eye to the middle of the frame. */
+.apt3d::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 75% 70% at 50% 45%, transparent 55%, rgba(38, 24, 12, 0.26) 100%);
+}
+.apt3d-captions {
+  position: absolute;
+  z-index: 1;
+  inset-block-end: 18px;
+  inset-inline-start: 14px;
 }
 .apt3d-label {
   position: absolute;
-  inset-block-end: 14px;
-  inset-inline-start: 14px;
+  inset-block-end: 0;
+  inset-inline-start: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
+  white-space: nowrap;
   background: rgba(30, 27, 24, 0.72);
   color: #f3eee6;
   font-family: var(--mono);
@@ -1124,12 +1150,55 @@ a {
   letter-spacing: 0.06em;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+  animation: apt3d-caption-in 560ms var(--ease-out) both;
+}
+/* Exits are quicker than entrances, so the new room name owns the moment. */
+.apt3d-label.leaving {
+  animation: apt3d-caption-out 240ms var(--ease-out) both;
+}
+@keyframes apt3d-caption-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+}
+@keyframes apt3d-caption-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+    filter: blur(4px);
+  }
 }
 .apt3d-label i {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--accent);
+  animation: apt3d-pulse 2.4s ease-in-out infinite;
+}
+@keyframes apt3d-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+/* How far through the loop the tour is: a hairline along the bottom edge. */
+.apt3d-progress {
+  position: absolute;
+  z-index: 1;
+  inset-inline: 0;
+  inset-block-end: 0;
+  height: 2px;
+  background: rgba(243, 238, 230, 0.25);
+}
+.apt3d-progress div {
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: right;
+}
+[dir='ltr'] .apt3d-progress div {
+  transform-origin: left;
 }
 .gate-art h1 em {
   font-style: normal;
