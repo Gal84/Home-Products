@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 /*
  * A furnished 3D model of the owner's apartment (Damri "Afek", type A, floor 19), with a camera that
@@ -13,6 +17,7 @@ const WALL_H = 2.7;
 const WALL_T = 0.12;
 
 type LabelFn = (label: string) => void;
+type Animator = (t: number) => void;
 
 interface Rect {
   x0: number;
@@ -134,6 +139,8 @@ function subway() {
 
 class Builder {
   readonly group = new THREE.Group();
+  /** Per-frame motion for props (plants in the breeze, curtains, cats). */
+  readonly anim: Animator[] = [];
   private mats = new Map<string, THREE.MeshStandardMaterial>();
 
   mat(color: string, roughness = 0.8, metalness = 0, extra: THREE.MeshStandardMaterialParameters = {}) {
@@ -250,15 +257,59 @@ class Builder {
 // ─── Furniture ──────────────────────────────────────────────────────────────
 
 function plant(b: Builder, x: number, z: number, scale = 1, pot = '#d8c9b2') {
-  b.cyl(0.2 * scale, 0.16 * scale, 0.42 * scale, b.mat(pot, 0.9), x, 0, z);
+  const potH = 0.42 * scale;
+  b.cyl(0.2 * scale, 0.16 * scale, potH, b.mat(pot, 0.9), x, 0, z);
   const leaf = b.mat('#5c7a4a', 0.85);
   const leaf2 = b.mat('#4a6a3d', 0.85);
   const r = rand(Math.round(x * 100 + z * 7));
+  // Foliage pivots at the soil so it bends from the base.
+  const crown = new THREE.Group();
+  crown.position.set(x, potH, z);
   for (let i = 0; i < 7; i++) {
     const a = r() * Math.PI * 2;
     const d = r() * 0.18 * scale;
-    b.sphere((0.16 + r() * 0.12) * scale, i % 2 ? leaf : leaf2, x + Math.cos(a) * d, (0.62 + r() * 0.55) * scale, z + Math.sin(a) * d, 1.2);
+    const m = new THREE.Mesh(new THREE.SphereGeometry((0.16 + r() * 0.12) * scale, 20, 14), i % 2 ? leaf : leaf2);
+    m.scale.y = 1.2;
+    m.position.set(Math.cos(a) * d, (0.62 + r() * 0.55) * scale - potH, Math.sin(a) * d);
+    crown.add(m);
   }
+  b.add(crown);
+  // Outdoors the breeze is stronger than the draught inside.
+  const sway = z < 0 ? 0.05 : 0.018;
+  const phase = x * 1.7 + z * 0.9;
+  b.anim.push((t) => {
+    crown.rotation.z = Math.sin(t * 0.9 + phase) * sway + Math.sin(t * 2.3 + phase * 2) * sway * 0.25;
+    crown.rotation.x = Math.sin(t * 0.7 + phase * 1.3) * sway * 0.6;
+  });
+}
+
+/** A sheer curtain on a track, rippling in the draught from the open balcony door. */
+function curtain(b: Builder, x0: number, x1: number, z: number) {
+  const w = x1 - x0;
+  const h = WALL_H - 0.1;
+  const geo = new THREE.PlaneGeometry(w, h, 36, 18);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const base = Float32Array.from(pos.array as Float32Array);
+  const m = new THREE.MeshStandardMaterial({ color: '#fbf6ee', roughness: 1, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false });
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.position.set((x0 + x1) / 2, 0.06 + h / 2, z);
+  b.group.add(mesh);
+  b.box(w + 0.1, 0.03, 0.04, b.mat('#2b2825', 0.5, 0.4), (x0 + x1) / 2, WALL_H - 0.05, z);
+  let frame = 0;
+  b.anim.push((t) => {
+    // Every other frame is plenty for cloth this slow.
+    if (frame++ % 2) return;
+    for (let i = 0; i < pos.count; i++) {
+      const px = base[i * 3];
+      const py = base[i * 3 + 1];
+      const hang = 0.5 - py / h; // 0 at the top, 1 at the hem
+      const pleat = Math.sin(px * 26) * 0.035;
+      const billow = (Math.sin(px * 3.2 + t * 1.1) * 0.5 + Math.sin(px * 5.1 - t * 1.7) * 0.25 + 0.6) * 0.07 * hang * hang;
+      pos.setZ(i, pleat + billow);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+  });
 }
 
 function pendant(b: Builder, x: number, z: number, y = 1.75, lights?: THREE.Group) {
@@ -421,6 +472,8 @@ function cat(b: Builder, x: number, y: number, z: number, rot: number, kind: Cat
   const phase = x * 3.1 + z;
   return (t: number) => {
     tailPivot.rotation.y = Math.sin(t * 1.1 + phase) * 0.3;
+    // Slow breathing: a sleeping cat takes about 25 breaths a minute.
+    g.scale.set(scale, scale * (1 + Math.sin(t * 2.6 + phase) * 0.014), scale * (1 + Math.sin(t * 2.6 + phase) * 0.006));
   };
 }
 
@@ -506,7 +559,8 @@ function buildApartment(b: Builder, lights: THREE.Group): ((t: number) => void)[
   b.floor(R.lobby, lobbyTile, 1.8);
   for (const k of ['living', 'hall', 'hall2', 'mamad', 'bed2', 'ensuite', 'master', 'bath', 'bed1', 'wc'] as const) b.ceiling(R[k], ceilingMat);
   b.ceiling({ x0: 0, x1: 7.3, z0: -1.4, z1: 0 }, ceilingMat); // covered half of the balcony (floor 20 above)
-  b.box(7.42, 0.25, 1.4, slab, 3.65, WALL_H, -0.7);
+  // The slab sits a hair above the ceiling plane; flush, the two faces z-fight and the ceiling flickers.
+  b.box(7.42, 0.25, 1.4, slab, 3.65, WALL_H + 0.01, -0.7);
 
   // ── Walls ──
   // Living room: sliding doors to the balcony (open in the middle), TV wall, entrance, WC.
@@ -592,10 +646,10 @@ function buildApartment(b: Builder, lights: THREE.Group): ((t: number) => void)[
   // Armchair.
   b.box(0.8, 0.4, 0.8, terracotta, 1.6, 0, 2.1, 0.12);
   b.box(0.8, 0.45, 0.16, terracotta, 1.6, 0.38, 1.76, 0.07);
-  // Floor lamp.
-  b.cyl(0.14, 0.14, 0.02, b.mat('#1e1c1a', 0.4, 0.6), 3.9, 0, 2.7);
-  b.cyl(0.012, 0.012, 1.5, b.mat('#1e1c1a', 0.4, 0.6), 3.9, 0, 2.7, 6);
-  b.cyl(0.14, 0.2, 0.28, b.mat('#f3e9d8', 0.9, 0, { emissive: '#ffdca8', emissiveIntensity: 0.35 }), 3.9, 1.45, 2.7);
+  // Reading lamp beside the armchair (clear of the camera's line past the sofa).
+  b.cyl(0.14, 0.14, 0.02, b.mat('#1e1c1a', 0.4, 0.6), 2.6, 0, 2.35);
+  b.cyl(0.012, 0.012, 1.5, b.mat('#1e1c1a', 0.4, 0.6), 2.6, 0, 2.35, 6);
+  b.cyl(0.14, 0.2, 0.28, b.mat('#f3e9d8', 0.9, 0, { emissive: '#ffdca8', emissiveIntensity: 0.35 }), 2.6, 1.45, 2.35);
   artwork(b, 0.08, 1.6, 6.8, Math.PI / 2, 1.1, 0.8, ['#b5522b', '#c08a2e', '#46607a']);
   artwork(b, 4.75, 1.5, 8.32, Math.PI, 0.9, 1.15, ['#cfd9de', '#8c9b7e', '#6b6b3a', '#c08a2e'], 'landscape', '#c9a57a');
   plant(b, 0.55, 0.6, 1.25, '#b5522b');
@@ -694,6 +748,9 @@ function buildApartment(b: Builder, lights: THREE.Group): ((t: number) => void)[
   b.cyl(0.35, 0.35, 0.04, b.mat('#c9a57a', 0.6), 1.7, 0.4, -1.2);
   b.cyl(0.03, 0.03, 0.4, b.mat('#2b2825', 0.5), 1.7, 0, -1.2, 6);
   b.box(0.8, 0.4, 0.8, terracotta, 5.4, 0, -1.6, 0.1);
+  // Sheers gathered either side of the open sliding door.
+  curtain(b, 1.5, 2.36, 0.13);
+  curtain(b, 4.44, 5.3, 0.13);
   plant(b, 6.8, -2.3, 1.3, '#b5522b');
   plant(b, 0.4, -2.35, 1.0);
   plant(b, 4.2, -2.4, 0.8);
@@ -909,7 +966,8 @@ function tower(scene: THREE.Scene, x: number, z: number, w: number, d: number, t
   }
 }
 
-function buildLandscape(scene: THREE.Scene) {
+function buildLandscape(scene: THREE.Scene): Animator[] {
+  const animators: Animator[] = [];
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(2600, 2600), new THREE.MeshLambertMaterial({ map: meadow() }));
   (ground.material as THREE.MeshLambertMaterial).map!.repeat.set(26, 26);
   ground.rotation.x = -Math.PI / 2;
@@ -935,6 +993,10 @@ function buildLandscape(scene: THREE.Scene) {
     const pond = new THREE.Mesh(blob(x, z, rx, rz, i + 10), water);
     pond.position.y = GROUND_Y + 0.12;
     scene.add(rim, pond);
+  });
+  // Light playing on the water.
+  animators.push((t) => {
+    water.emissiveIntensity = 0.33 + Math.sin(t * 0.8) * 0.04 + Math.sin(t * 2.1) * 0.015;
   });
   // Winding stream.
   const stream = new THREE.Mesh(
@@ -1020,6 +1082,9 @@ function buildLandscape(scene: THREE.Scene) {
         '#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}',
     }),
   );
+  // Drawn first and never depth-tested: it is the backdrop, and it has no log-depth chunks.
+  sky.renderOrder = -1;
+  sky.material.depthTest = false;
   scene.add(sky);
   const cloudTex = canvasTexture(256, (g, s) => {
     const cr = rand(5);
@@ -1034,13 +1099,104 @@ function buildLandscape(scene: THREE.Scene) {
       g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
     }
   });
+  const clouds = new THREE.Group();
   for (let i = 0; i < 12; i++) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, fog: false, depthWrite: false, transparent: true, opacity: 0.95 }));
     const a = -Math.PI * 0.95 + (i / 12) * Math.PI * 1.4;
     sp.position.set(Math.cos(a) * 1100, 90 + r() * 170, Math.sin(a) * 1100);
     sp.scale.set(420 + r() * 300, 140 + r() * 60, 1);
-    scene.add(sp);
+    clouds.add(sp);
   }
+  scene.add(clouds);
+  // The clouds drift, slowly enough that the loop point never shows.
+  animators.push((t) => {
+    clouds.rotation.y = Math.sin(t * 0.012) * 0.06;
+  });
+
+  animators.push(...flock(scene));
+  return animators;
+}
+
+/** A small flock of egrets circling over the reserve at about the height of the flat. */
+function flock(scene: THREE.Scene): Animator[] {
+  const wingGeo = new THREE.BufferGeometry();
+  // One wing: a swept triangle from the body out to the tip.
+  wingGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, -0.18, 0, 0, 0.22, 0.95, 0, -0.1], 3));
+  wingGeo.computeVertexNormals();
+  const mat = new THREE.MeshLambertMaterial({ color: '#fbf3e6', side: THREE.DoubleSide, emissive: '#6b5a4a', emissiveIntensity: 0.25 });
+  const bodyGeo = new THREE.CapsuleGeometry(0.09, 0.5, 4, 8).rotateX(Math.PI / 2);
+  const out: Animator[] = [];
+  const r = rand(77);
+  const centre = V(-10, -6, -95);
+  for (let i = 0; i < 9; i++) {
+    const bird = new THREE.Group();
+    bird.add(new THREE.Mesh(bodyGeo, mat));
+    const left = new THREE.Mesh(wingGeo, mat);
+    const right = new THREE.Mesh(wingGeo, mat);
+    right.scale.x = -1;
+    bird.add(left, right);
+    bird.scale.setScalar(1.6);
+    scene.add(bird);
+    const lag = i * 0.055 + r() * 0.02;
+    const lane = V((r() - 0.5) * 9, (r() - 0.5) * 5, (r() - 0.5) * 9);
+    const flap = 5 + r() * 1.5;
+    const phase = r() * 6;
+    const next = new THREE.Vector3();
+    const at = (t: number, v: THREE.Vector3) => {
+      const a = t * 0.07 - lag;
+      return v.set(
+        centre.x + Math.cos(a) * 70 + Math.sin(a * 2.3) * 12 + lane.x,
+        centre.y + Math.sin(a * 1.7) * 6 + lane.y,
+        centre.z + Math.sin(a) * 38 + lane.z,
+      );
+    };
+    out.push((t) => {
+      at(t, bird.position);
+      at(t + 0.2, next);
+      bird.lookAt(next);
+      // Flap, then glide for a beat.
+      const glide = Math.sin(t * 0.5 + phase) > 0.55;
+      const w = glide ? 0.12 : Math.sin(t * flap + phase) * 0.55;
+      left.rotation.z = w;
+      right.rotation.z = -w;
+    });
+  }
+  return out;
+}
+
+/** Specks of dust turning in the evening sun that slants in through the balcony door. */
+function dust(scene: THREE.Scene): Animator {
+  const n = 220;
+  const r = rand(4242);
+  const seed = new Float32Array(n * 4);
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    seed.set([0.3 + r() * 6.4, 0.25 + r() * 2.3, 0.2 + r() * 6.5, r() * 100], i * 4);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const tex = canvasTexture(64, (g, s) => {
+    const grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    grd.addColorStop(0, 'rgba(255,240,215,1)');
+    grd.addColorStop(1, 'rgba(255,240,215,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, s, s);
+  });
+  const pts = new THREE.Points(
+    geo,
+    new THREE.PointsMaterial({ map: tex, size: 0.018, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, color: '#ffe2b8' }),
+  );
+  pts.frustumCulled = false;
+  scene.add(pts);
+  return (t) => {
+    for (let i = 0; i < n; i++) {
+      const [x, y, z, k] = seed.subarray(i * 4, i * 4 + 4);
+      pos[i * 3] = x + Math.sin(t * 0.13 + k) * 0.35;
+      pos[i * 3 + 1] = y + Math.sin(t * 0.09 + k * 1.3) * 0.25;
+      pos[i * 3 + 2] = z + Math.cos(t * 0.11 + k * 0.7) * 0.35;
+    }
+    geo.attributes.position.needsUpdate = true;
+  };
 }
 
 // ─── Camera path ────────────────────────────────────────────────────────────
@@ -1068,6 +1224,23 @@ const STOPS: { p: THREE.Vector3; t: THREE.Vector3; label: string }[] = [
   { p: V(8.8, 6.5, 5.8), t: V(7.6, 0.5, 5.4), label: 'טיפוס A · קומה 19' },
 ];
 
+/** Wrapping box blur; three passes approximate a Gaussian. The tour is a loop, so the ends meet. */
+function blurLoop(src: Float64Array, radius: number) {
+  const n = src.length;
+  let a = src;
+  for (let pass = 0; pass < 3; pass++) {
+    const b = new Float64Array(n);
+    let sum = 0;
+    for (let k = -radius; k <= radius; k++) sum += a[(k + n) % n];
+    for (let i = 0; i < n; i++) {
+      b[i] = sum / (2 * radius + 1);
+      sum += a[(i + radius + 1) % n] - a[(i - radius + n) % n];
+    }
+    a = b;
+  }
+  return a;
+}
+
 function makePath() {
   const pos = new THREE.CatmullRomCurve3(
     STOPS.map((s) => s.p),
@@ -1079,17 +1252,28 @@ function makePath() {
     true,
     'centripetal',
   );
-  // Time-warp: glide slowly at eye level and faster through the overhead parts.
   const N = 3000;
-  const times = new Float64Array(N + 1);
-  const len = pos.getLength();
-  let prev = pos.getPointAt(0);
-  for (let i = 1; i <= N; i++) {
-    const p = pos.getPointAt(i / N);
-    const speed = 0.95 + Math.max(0, p.y - 1.7) * 0.55;
-    times[i] = times[i - 1] + prev.distanceTo(p) / speed;
-    prev = p;
+  const pts: THREE.Vector3[] = [];
+  const dirs: THREE.Vector3[] = [];
+  for (let i = 0; i < N; i++) {
+    const u = i / N;
+    const p = pos.getPointAt(u);
+    pts.push(p);
+    dirs.push(tgt.getPoint(pos.getUtoTmapping(u, 0)).sub(p).normalize());
   }
+  // Speed profile: glide at walking pace, ease off while the view swings round (a pan reads as a
+  // deliberate look, not a whip), and move faster through the overhead parts. Blurring the profile
+  // turns every change of pace into a gentle acceleration instead of a lurch.
+  const raw = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    const ds = Math.max(1e-4, pts[i].distanceTo(pts[j]));
+    const turn = dirs[i].angleTo(dirs[j]) / ds; // radians per metre
+    raw[i] = (0.95 + Math.max(0, pts[i].y - 1.7) * 0.55) / (1 + turn * 0.55);
+  }
+  const speed = blurLoop(raw, 45);
+  const times = new Float64Array(N + 1);
+  for (let i = 1; i <= N; i++) times[i] = times[i - 1] + pts[i - 1].distanceTo(pts[i % N]) / speed[i - 1];
   const total = times[N];
   const uAt = (sec: number) => {
     const t = ((sec % total) + total) % total;
@@ -1103,16 +1287,22 @@ function makePath() {
     const f = (t - times[lo]) / (times[hi] - times[lo] || 1);
     return (lo + f) / N;
   };
-  return { pos, tgt, total, uAt, len };
+  return { pos, tgt, total, uAt };
 }
 
 // ─── Mount ──────────────────────────────────────────────────────────────────
 
-export function mountApartment(container: HTMLElement, onLabel: LabelFn): () => void {
+/**
+ * Mounts the tour into `container`. `onLabel` fires when the caption changes; `onFrame` gets the
+ * loop progress (0–1) every frame, for a progress line.
+ */
+export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame?: (progress: number) => void): () => void {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const small = Math.min(window.innerWidth, window.innerHeight) < 700;
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  // A logarithmic depth buffer keeps thin layers (floors on slabs, ponds on the meadow 1 km out)
+  // from z-fighting at any distance.
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, small ? 1.5 : 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1125,7 +1315,7 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn): () => 
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog('#e6cfb4', 260, 1300);
 
-  const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 3000);
+  const camera = new THREE.PerspectiveCamera(62, 1, 0.06, 3000);
 
   // Soft studio reflections so steel, brass and glass read as metal instead of black.
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -1151,22 +1341,59 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn): () => 
 
   const lights = new THREE.Group();
   const b = new Builder();
-  const animators = buildApartment(b, lights);
+  const animators = [...buildApartment(b, lights), ...b.anim, ...buildLandscape(scene), dust(scene)];
   scene.add(b.group, lights);
-  buildLandscape(scene);
+
+  // Soft bloom on large screens: bulbs, sunlit walls and the horizon glow a little, like a lens.
+  // Phones skip it to keep the frame rate up.
+  let composer: EffectComposer | null = null;
+  if (!small) {
+    const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+    composer = new EffectComposer(renderer, rt);
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.2, 0.45, 0.97));
+    composer.addPass(new OutputPass());
+  }
+  const draw = () => (composer ? composer.render() : renderer.render(scene, camera));
 
   const path = makePath();
   let lastLabel = '';
   const look = new THREE.Vector3();
 
+  // Look direction at a moment of the tour.
+  const dirAt = (sec: number, out: THREE.Vector3) => {
+    const u = path.uAt(sec);
+    const p = path.pos.getPointAt(u);
+    return out.copy(path.tgt.getPoint(path.pos.getUtoTmapping(u, 0))).sub(p).normalize();
+  };
+  // Gaussian-weighted window: the gaze leads into turns and settles out of them like a steadicam
+  // operator's, with no lag and no dependence on frame history (so frozen frames still match).
+  const WIN = [-0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9];
+  const WEIGHT = WIN.map((o) => Math.exp(-(o * o) / 0.32));
+  const tmp = new THREE.Vector3();
+  const dir = new THREE.Vector3();
+  const ahead = new THREE.Vector3();
+  const behind = new THREE.Vector3();
+
   const place = (sec: number) => {
     const u = path.uAt(sec);
     const t = path.pos.getUtoTmapping(u, 0);
     const p = path.pos.getPointAt(u);
-    p.y += Math.sin(sec * 0.9) * 0.025;
+    // Two slow, unrelated sways read as a hand-held camera rather than a metronome.
+    p.y += Math.sin(sec * 0.83) * 0.018 + Math.sin(sec * 0.31 + 1.3) * 0.012;
+    p.x += Math.sin(sec * 0.47 + 0.4) * 0.012;
     camera.position.copy(p);
-    look.copy(path.tgt.getPoint(t));
+    dir.set(0, 0, 0);
+    WIN.forEach((o, i) => dir.addScaledVector(dirAt(sec + o, tmp), WEIGHT[i]));
+    dir.normalize();
+    look.copy(p).add(dir);
     camera.lookAt(look);
+    // Bank gently into turns, like a drone.
+    dirAt(sec + 0.45, ahead);
+    dirAt(sec - 0.45, behind);
+    const yawRate = Math.atan2(behind.x * ahead.z - behind.z * ahead.x, behind.x * ahead.x + behind.z * ahead.z) / 0.9;
+    camera.rotateZ(THREE.MathUtils.clamp(-yawRate * 0.045, -0.035, 0.035));
+    onFrame?.(((sec % path.total) + path.total) % path.total / path.total);
     const label = STOPS[Math.round(t * STOPS.length) % STOPS.length].label;
     if (label !== lastLabel) {
       lastLabel = label;
@@ -1179,10 +1406,14 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn): () => 
     const h = container.clientHeight;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
+    if (composer) {
+      composer.setPixelRatio(renderer.getPixelRatio());
+      composer.setSize(w, h);
+    }
     camera.aspect = w / h;
     camera.fov = w / h < 1 ? 72 : 60;
     camera.updateProjectionMatrix();
-    renderer.render(scene, camera);
+    draw();
   };
   const ro = new ResizeObserver(resize);
   ro.observe(container);
@@ -1196,18 +1427,21 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn): () => 
   let last = performance.now();
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
-    const dt = Math.min(0.1, (now - last) / 1000);
+    // Cap the step so a dropped frame is a short pause, not a jump.
+    const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     if (!visible || document.hidden) return;
     clock += dt;
     place(clock);
     for (const a of animators) a(clock);
-    renderer.render(scene, camera);
+    draw();
   };
 
   // `?apt-t=SECONDS` freezes the tour at one moment (used for screenshots).
   const frozen = Number(new URLSearchParams(window.location.search).get('apt-t'));
-  place(Number.isFinite(frozen) && frozen > 0 ? frozen : 0);
+  const start = Number.isFinite(frozen) && frozen > 0 ? frozen : 0;
+  place(start);
+  for (const a of animators) a(start);
   resize();
   if (!reduced && !(frozen > 0)) raf = requestAnimationFrame(frame);
 
@@ -1226,6 +1460,7 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn): () => 
         });
       }
     });
+    composer?.dispose();
     envTex.dispose();
     pmrem.dispose();
     renderer.dispose();
