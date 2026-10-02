@@ -16,6 +16,7 @@ interface Props {
 
 export function Gate({ onEnter, notice }: Props) {
   const [code, setCode] = useState('');
+  const [reveal, setReveal] = useState(false);
   const [error, setError] = useState<string | null>(notice ?? null);
   const [busy, setBusy] = useState(false);
   const [planning, setPlanning] = useState(false);
@@ -125,16 +126,30 @@ export function Gate({ onEnter, notice }: Props) {
               }}
               style={{ display: 'grid', gap: 12 }}
             >
-              <input
-                className="input num"
-                dir="ltr"
-                placeholder="1234 / HOME-XXXX-XXXX-XXXX-XXXX"
-                aria-label="קוד אישי או קוד דירה"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-              />
+              {/* Masked like a password; the toggle shows it to check a pasted long code. */}
+              <div className="code-field">
+                <input
+                  className="input num"
+                  dir="ltr"
+                  type={reveal ? 'text' : 'password'}
+                  placeholder="1234 / HOME-XXXX-XXXX-XXXX-XXXX"
+                  aria-label="קוד אישי או קוד דירה"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  autoComplete="current-password"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  className="code-reveal"
+                  onClick={() => setReveal((r) => !r)}
+                  aria-pressed={reveal}
+                  aria-label={reveal ? 'הסתרת הקוד' : 'הצגת הקוד'}
+                >
+                  {reveal ? 'הסתר' : 'הצג'}
+                </button>
+              </div>
               <button className="btn primary" disabled={busy || !code.trim()}>
                 כניסה לרשימה
               </button>
