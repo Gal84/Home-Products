@@ -15,6 +15,7 @@ import { normalizeCode } from './lib/id';
 import { live, ops, sortedCategories } from './lib/store';
 import { homeCache, savedCode, themePref, uiPref, type ThemePref } from './lib/storage';
 import { useHome } from './lib/useHome';
+import { t, tr, useLang } from './i18n';
 
 function codeFromUrl(): string | null {
   const url = new URL(window.location.href);
@@ -33,6 +34,8 @@ export default function App() {
   });
   const [notice, setNotice] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemePref>(themePref.get());
+  // Re-render the whole tree when the language changes.
+  useLang();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -71,6 +74,7 @@ function HomeView({
   onLeave: (msg?: string) => void;
 }) {
   const { data, status, update } = useHome(code);
+  const lang = useLang();
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [collapsed, setCollapsed] = useState<string[]>(uiPref.collapsed());
   const [itemDraft, setItemDraft] = useState<ItemDraft | null>(null);
@@ -80,7 +84,7 @@ function HomeView({
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status === 'notfound') onLeave('הדירה לא נמצאה בשרת. אולי הקוד השתנה?');
+    if (status === 'notfound') onLeave(t('הדירה לא נמצאה בשרת. אולי הקוד השתנה?'));
   }, [status, onLeave]);
 
   useEffect(() => {
@@ -102,10 +106,11 @@ function HomeView({
     const match = (i: Item) =>
       (filters.status === 'all' || (filters.status === 'bought') === i.purchased) &&
       (filters.priority === 'all' || i.priority === filters.priority) &&
-      (!q || [i.name, i.store, i.notes].some((s) => s?.toLowerCase().includes(q)));
+      // Search what is on screen: in Russian that is the translated name, plus the original.
+      (!q || [i.name, tr(i.name), i.store, i.notes, tr(i.notes)].some((s) => s?.toLowerCase().includes(q)));
     const sorters: Record<Filters['sort'], (a: Item, b: Item) => number> = {
       default: (a, b) => a.createdAt - b.createdAt,
-      name: (a, b) => a.name.localeCompare(b.name, 'he'),
+      name: (a, b) => tr(a.name).localeCompare(tr(b.name), lang),
       'price-desc': (a, b) => lineTotal(b) - lineTotal(a),
       'price-asc': (a, b) => lineTotal(a) - lineTotal(b),
       priority: (a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority],
@@ -116,7 +121,7 @@ function HomeView({
     for (const i of items) if (match(i)) map.get(i.categoryId)?.push(i);
     for (const list of map.values()) list.sort((a, b) => sorters[filters.sort](a, b) || a.createdAt - b.createdAt);
     return map;
-  }, [items, cats, filters]);
+  }, [items, cats, filters, lang]);
 
   const visibleCats = cats.filter(
     (c) => (filters.category === 'all' || filters.category === c.id) && (!filtering || filters.category === c.id || (shownByCat.get(c.id)?.length ?? 0) > 0),
@@ -125,8 +130,8 @@ function HomeView({
   const summary = useMemo(() => {
     if (!filtering) return null;
     const shown = visibleCats.flatMap((c) => shownByCat.get(c.id) ?? []);
-    return `מוצגים ${shown.length} מוצרים · ${shekel(totals(shown).total)}`;
-  }, [filtering, visibleCats, shownByCat]);
+    return t('מוצגים {n} מוצרים · {sum}', { n: shown.length, sum: shekel(totals(shown).total) });
+  }, [filtering, visibleCats, shownByCat, lang]);
 
   const toggleCollapse = (id: string) =>
     setCollapsed((cur) => {
@@ -139,13 +144,13 @@ function HomeView({
     const link = `${window.location.origin}${window.location.pathname}?code=${encodeURIComponent(code)}`;
     try {
       if (navigator.share && matchMedia('(pointer: coarse)').matches) {
-        await navigator.share({ title: 'רשימת הקניות לדירה', text: 'הרשימה המשותפת שלנו לדירה החדשה', url: link });
+        await navigator.share({ title: t('רשימת הקניות לדירה'), text: t('הרשימה המשותפת שלנו לדירה החדשה'), url: link });
         return;
       }
       await navigator.clipboard.writeText(link);
-      setToast('קישור השיתוף הועתק');
+      setToast(t('קישור השיתוף הועתק'));
     } catch {
-      setToast(`קוד הדירה: ${code}`);
+      setToast(t('קוד הדירה: {c}', { c: code }));
     }
   }, [code]);
 
@@ -160,10 +165,10 @@ function HomeView({
       <div className="page">
         <div className="empty-state">
           <div className="eyebrow">N°01</div>
-          <h2>{status === 'loading' ? 'פותח את הקטלוג…' : 'אין חיבור לשרת'}</h2>
+          <h2>{t(status === 'loading' ? 'פותח את הקטלוג…' : 'אין חיבור לשרת')}</h2>
           {status !== 'loading' && (
             <button className="btn" onClick={() => onLeave()}>
-              חזרה למסך הכניסה
+              {t('חזרה למסך הכניסה')}
             </button>
           )}
         </div>
@@ -195,14 +200,14 @@ function HomeView({
 
       {cats.length === 0 ? (
         <div className="empty-state">
-          <h2>דף ריק</h2>
-          <p>התחילו בקטגוריה ראשונה, או תנו למתכנן לבנות רשימה מלאה לפי מספר החדרים.</p>
+          <h2>{t('דף ריק')}</h2>
+          <p>{t('התחילו בקטגוריה ראשונה, או תנו למתכנן לבנות רשימה מלאה לפי מספר החדרים.')}</p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button className="btn accent" onClick={() => setPlanner(true)}>
-              מתכנן הדירה
+              {t('מתכנן הדירה')}
             </button>
             <button className="btn" onClick={() => setCatDraft({ category: null })}>
-              קטגוריה חדשה
+              {t('קטגוריה חדשה')}
             </button>
           </div>
         </div>
@@ -234,18 +239,18 @@ function HomeView({
 
       {filtering && visibleCats.length === 0 && cats.length > 0 && (
         <div className="empty-state">
-          <h2>לא נמצא</h2>
-          <p>אין מוצרים שמתאימים לחיפוש ולסינון.</p>
+          <h2>{t('לא נמצא')}</h2>
+          <p>{t('אין מוצרים שמתאימים לחיפוש ולסינון.')}</p>
         </div>
       )}
 
       <footer className="colophon">
-        <span className="eyebrow">N°01 · קטלוג הדירה</span>
-        <span className="eyebrow">המחירים הם הערכה — עדכנו לפי הצעות מחיר</span>
+        <span className="eyebrow">{t('N°01 · קטלוג הדירה')}</span>
+        <span className="eyebrow">{t('המחירים הם הערכה — עדכנו לפי הצעות מחיר')}</span>
       </footer>
 
       <button className="btn primary fab" onClick={() => addItem()}>
-        <IconPlus width={16} height={16} /> מוצר
+        <IconPlus width={16} height={16} /> {t('מוצר')}
       </button>
 
       {itemDraft && (
@@ -275,7 +280,7 @@ function HomeView({
                   const id = itemDraft.item!.id;
                   update((d) => ops.duplicateItem(d, id));
                   setItemDraft(null);
-                  setToast('המוצר שוכפל');
+                  setToast(t('המוצר שוכפל'));
                 }
               : undefined
           }
@@ -313,8 +318,8 @@ function HomeView({
             const before = items.length;
             update((d) => applyPlan(d, profile, mode));
             setPlanner(false);
-            if (mode === 'merge') setToast('הרשימה עודכנה');
-            else setToast(`הרשימה נבנתה מחדש (${before} מוצרים הוסרו)`);
+            if (mode === 'merge') setToast(t('הרשימה עודכנה'));
+            else setToast(t('הרשימה נבנתה מחדש ({n} מוצרים הוסרו)', { n: before }));
           }}
         />
       )}
@@ -329,7 +334,7 @@ function HomeView({
           onImport={(incoming) => {
             update((d) => ops.importAll(d, incoming));
             setSettings(false);
-            setToast('הגיבוי שוחזר');
+            setToast(t('הגיבוי שוחזר'));
           }}
           onShare={share}
           onLogout={() => onLeave()}

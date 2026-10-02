@@ -4,6 +4,8 @@ import { lineTotal, PRIORITY_LABEL } from '../lib/format';
 import { isHomeData, live, sortedCategories } from '../lib/store';
 import type { ThemePref } from '../lib/storage';
 import { Sheet } from './Sheet';
+import { LangSwitch } from './LangSwitch';
+import { t, tr } from '../i18n';
 
 interface Props {
   data: HomeData;
@@ -28,26 +30,28 @@ function download(name: string, content: string, type: string) {
 
 function toCsv(d: HomeData): string {
   const cats = sortedCategories(d);
-  const rows = [['קטגוריה', 'מוצר', 'כמות', 'מחיר ליחידה', 'סה"כ', 'עדיפות', 'נרכש', 'מושמט', 'חנות', 'קישור', 'הערות']];
+  const rows = [['קטגוריה', 'מוצר', 'כמות', 'מחיר ליחידה', 'סה"כ', 'עדיפות', 'נרכש', 'מושמט', 'חנות', 'קישור', 'הערות'].map((h) => t(h))];
+  const yes = t('כן');
+  const no = t('לא');
   for (const c of cats) {
     for (const i of live(d.items).filter((x) => x.categoryId === c.id)) {
       rows.push([
-        c.name,
-        i.name,
+        tr(c.name),
+        tr(i.name),
         String(i.qty),
         String(i.unitPrice),
         String(lineTotal(i)),
-        PRIORITY_LABEL[i.priority],
-        i.purchased ? 'כן' : 'לא',
-        i.excluded ? 'כן' : 'לא',
+        t(PRIORITY_LABEL[i.priority]),
+        i.purchased ? yes : no,
+        i.excluded ? yes : no,
         i.store ?? '',
         i.link ?? '',
-        i.notes ?? '',
+        tr(i.notes) ?? '',
       ]);
     }
   }
   const esc = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-  // BOM so Excel opens Hebrew correctly.
+  // BOM so Excel opens Hebrew and Cyrillic correctly.
   return '﻿' + rows.map((r) => r.map(esc).join(',')).join('\n');
 }
 
@@ -75,37 +79,40 @@ export function Settings({ data, code, theme, onTheme, onBudget, onImport, onSha
       if (!isHomeData(parsed)) throw new Error();
       onImport(parsed);
     } catch {
-      setImportError('הקובץ לא נראה כמו גיבוי של האפליקציה.');
+      setImportError(t('הקובץ לא נראה כמו גיבוי של האפליקציה.'));
     }
   };
 
   return (
-    <Sheet eyebrow="הגדרות" title="הגדרות ושיתוף" onClose={onClose}>
-      <h3 className="section-title">תקציב</h3>
+    <Sheet eyebrow={t('הגדרות')} title={t('הגדרות ושיתוף')} onClose={onClose}>
+      <h3 className="section-title">{t('תקציב')}</h3>
       <label className="field">
-        <span>תקציב יעד לכל הדירה (₪) — לא חובה</span>
+        <span>{t('תקציב יעד לכל הדירה (₪) — לא חובה')}</span>
         <input
           className="input num"
           inputMode="numeric"
           value={budget}
-          placeholder="למשל 400000"
+          placeholder={t('למשל 400000')}
           onChange={(e) => setBudget(e.target.value)}
           onBlur={commitBudget}
           onKeyDown={(e) => e.key === 'Enter' && commitBudget()}
         />
       </label>
 
-      <h3 className="section-title">שיתוף</h3>
-      <p className="hint">כל מי שיש לו את הקוד רואה ועורך את אותה רשימה, מכל מכשיר. שתפו רק עם בני הבית.</p>
+      <h3 className="section-title">{t('שיתוף')}</h3>
+      <p className="hint">{t('כל מי שיש לו את הקוד רואה ועורך את אותה רשימה, מכל מכשיר. שתפו רק עם בני הבית.')}</p>
       <div className="code-box">
         <span className="num">{code}</span>
         <button className="btn sm" onClick={onShare}>
-          העתקת קישור
+          {t('העתקת קישור')}
         </button>
       </div>
 
-      <h3 className="section-title">מראה</h3>
-      <div className="seg" role="group" aria-label="ערכת צבעים">
+      <h3 className="section-title">{t('שפה')}</h3>
+      <LangSwitch />
+
+      <h3 className="section-title">{t('מראה')}</h3>
+      <div className="seg" role="group" aria-label={t('ערכת צבעים')}>
         {(
           [
             ['auto', 'אוטומטי'],
@@ -114,21 +121,21 @@ export function Settings({ data, code, theme, onTheme, onBudget, onImport, onSha
           ] as const
         ).map(([k, label]) => (
           <button key={k} aria-pressed={theme === k} onClick={() => onTheme(k)}>
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
 
-      <h3 className="section-title">גיבוי וייצוא</h3>
+      <h3 className="section-title">{t('גיבוי וייצוא')}</h3>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <button className="btn" onClick={() => download(`home-products-${stamp}.csv`, toCsv(data), 'text/csv;charset=utf-8')}>
-          ייצוא לאקסל (CSV)
+          {t('ייצוא לאקסל (CSV)')}
         </button>
         <button className="btn" onClick={exportJson}>
-          גיבוי (JSON)
+          {t('גיבוי (JSON)')}
         </button>
         <button className="btn ghost" onClick={() => fileRef.current?.click()}>
-          שחזור מגיבוי…
+          {t('שחזור מגיבוי…')}
         </button>
         <input
           ref={fileRef}
@@ -142,20 +149,20 @@ export function Settings({ data, code, theme, onTheme, onBudget, onImport, onSha
           }}
         />
       </div>
-      <p className="hint">שחזור מגיבוי מחליף את כל הרשימה הנוכחית.</p>
+      <p className="hint">{t('שחזור מגיבוי מחליף את כל הרשימה הנוכחית.')}</p>
       {importError && <div className="error">{importError}</div>}
 
-      <h3 className="section-title">המכשיר הזה</h3>
+      <h3 className="section-title">{t('המכשיר הזה')}</h3>
       {confirmLogout ? (
         <div style={{ display: 'grid', gap: 8 }}>
-          <p className="hint">הרשימה נשארת שמורה בענן. כדי לחזור תצטרכו את הקוד — ודאו ששמרתם אותו.</p>
+          <p className="hint">{t('הרשימה נשארת שמורה בענן. כדי לחזור תצטרכו את הקוד — ודאו ששמרתם אותו.')}</p>
           <button className="btn danger" onClick={onLogout}>
-            יציאה מהדירה במכשיר הזה
+            {t('יציאה מהדירה במכשיר הזה')}
           </button>
         </div>
       ) : (
         <button className="btn ghost" style={{ justifySelf: 'start' }} onClick={() => setConfirmLogout(true)}>
-          יציאה / מעבר לדירה אחרת
+          {t('יציאה / מעבר לדירה אחרת')}
         </button>
       )}
     </Sheet>

@@ -1,3 +1,4 @@
+import { t, tr } from '../i18n';
 import type { Category, HomeData, Item } from '../types';
 import { uid } from './id';
 import { DEFAULT_PROFILE } from '../planner/templates';
@@ -67,7 +68,7 @@ export const ops = {
     const src = d.items.find((i) => i.id === id);
     if (!src) return d;
     const { id: _id, createdAt: _c, updatedAt: _u, key: _k, ...rest } = src;
-    return ops.addItem(d, { ...rest, name: `${src.name} (עותק)`, purchased: false, actualPrice: null });
+    return ops.addItem(d, { ...rest, name: `${tr(src.name)} ${t('(עותק)')}`, purchased: false, actualPrice: null });
   },
 
   setMeta(d: HomeData, patch: Partial<Pick<HomeData, 'budget' | 'profile'>>): HomeData {

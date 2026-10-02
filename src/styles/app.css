@@ -234,6 +234,67 @@ a {
   border-bottom-color: var(--ink-2);
   border-radius: var(--radius);
 }
+/* ─── Language switch ─── */
+.lang-switch {
+  display: inline-flex;
+  border: 1px solid var(--rule-strong);
+  border-radius: 20px;
+  padding: 2px;
+  gap: 2px;
+}
+.lang-switch button {
+  min-width: 34px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 16px;
+  background: none;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 120ms ease-out;
+}
+.lang-switch button[lang='he'] {
+  font-family: var(--sans);
+  font-weight: 600;
+}
+.lang-switch button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+.lang-switch button:active {
+  transform: scale(0.95);
+}
+.lang-switch button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .lang-switch button[aria-pressed='false']:hover {
+    color: var(--ink);
+  }
+}
+/* Russian reads left to right: mirror the few direction-specific details. */
+:root[lang='ru'] {
+  --serif: 'PT Serif', 'Frank Ruhl Libre', 'Times New Roman', serif;
+  --sans: 'Golos Text', 'Assistant', system-ui, sans-serif;
+}
+[dir='ltr'] .select {
+  background-position: right 11px center, right 16px center;
+}
+[dir='ltr'] .code-field .input {
+  padding-left: 12px;
+  padding-right: 64px;
+}
+[dir='ltr'] .code-reveal {
+  left: auto;
+  right: 0;
+}
 .code-field {
   position: relative;
 }
@@ -705,7 +766,7 @@ a {
   display: grid;
   justify-items: end;
   gap: 2px;
-  text-align: left;
+  text-align: end;
 }
 .cat-sum .num {
   font-size: 26px;
@@ -869,11 +930,11 @@ a {
 .item .calc {
   font-size: 13px;
   color: var(--muted);
-  text-align: left;
+  text-align: end;
 }
 .item .total {
   font-size: 17px;
-  text-align: left;
+  text-align: end;
 }
 .item .total .paid {
   display: block;
@@ -1156,6 +1217,12 @@ a {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
 }
+.gate-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .gate-art {
   position: relative;
   padding: var(--gutter);
@@ -1425,6 +1492,15 @@ a {
 @media (max-width: 720px) {
   .topline .brand .eyebrow {
     display: none;
+  }
+  /* Room for the language switch: the coloured dot alone carries the sync state on phones. */
+  .sync-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .toolbar {
     position: static;

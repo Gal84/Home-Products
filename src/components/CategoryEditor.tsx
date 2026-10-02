@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Category } from '../types';
 import { PALETTE } from '../planner/templates';
 import { Sheet } from './Sheet';
+import { t, tr } from '../i18n';
 
 interface Props {
   category: Category | null;
@@ -12,36 +13,45 @@ interface Props {
 }
 
 export function CategoryEditor({ category, itemCount, onSave, onDelete, onClose }: Props) {
-  const [name, setName] = useState(category?.name ?? '');
-  const [note, setNote] = useState(category?.note ?? '');
+  // Planner-made names are shown translated; saving them untouched keeps the stored original.
+  const shownName = category ? tr(category.name) : '';
+  const shownNote = tr(category?.note) ?? '';
+  const [name, setName] = useState(shownName);
+  const [note, setNote] = useState(shownNote);
   const [color, setColor] = useState(category?.color ?? PALETTE[Math.floor(Math.random() * PALETTE.length)]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const valid = name.trim().length > 0;
 
-  const save = () => valid && onSave({ name: name.trim(), note: note.trim() || undefined, color });
+  const save = () =>
+    valid &&
+    onSave({
+      name: category && name === shownName ? category.name : name.trim(),
+      note: category && note === shownNote ? category.note : note.trim() || undefined,
+      color,
+    });
 
   return (
     <Sheet
-      eyebrow={category ? 'עריכת קטגוריה' : 'קטגוריה חדשה'}
-      title={category ? category.name : 'הוספת קטגוריה'}
+      eyebrow={t(category ? 'עריכת קטגוריה' : 'קטגוריה חדשה')}
+      title={category ? shownName : t('הוספת קטגוריה')}
       onClose={onClose}
       footer={
         <>
           <button className="btn primary" onClick={save} disabled={!valid}>
-            שמירה
+            {t('שמירה')}
           </button>
           <button className="btn ghost" onClick={onClose}>
-            ביטול
+            {t('ביטול')}
           </button>
           <span className="spacer" />
           {onDelete &&
             (confirmDelete ? (
               <button className="btn danger" onClick={onDelete}>
-                {itemCount ? `למחוק גם ${itemCount} מוצרים?` : 'בטוח? מחיקה'}
+                {itemCount ? t('למחוק גם {n} מוצרים?', { n: itemCount }) : t('בטוח? מחיקה')}
               </button>
             ) : (
               <button className="btn ghost" onClick={() => setConfirmDelete(true)}>
-                מחיקת קטגוריה
+                {t('מחיקת קטגוריה')}
               </button>
             ))}
         </>
@@ -55,15 +65,15 @@ export function CategoryEditor({ category, itemCount, onSave, onDelete, onClose 
         style={{ display: 'contents' }}
       >
         <label className="field">
-          <span>שם הקטגוריה</span>
-          <input className="input" data-autofocus value={name} onChange={(e) => setName(e.target.value)} placeholder="למשל: חדר כביסה" />
+          <span>{t('שם הקטגוריה')}</span>
+          <input className="input" data-autofocus value={name} onChange={(e) => setName(e.target.value)} placeholder={t('למשל: חדר כביסה')} />
         </label>
         <label className="field">
-          <span>תיאור קצר — לא חובה</span>
-          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="למשל: 6 מ״ר" />
+          <span>{t('תיאור קצר — לא חובה')}</span>
+          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('למשל: 6 מ״ר')} />
         </label>
         <div className="field">
-          <span>צבע</span>
+          <span>{t('צבע')}</span>
           <div className="swatches">
             {PALETTE.map((c) => (
               <button
