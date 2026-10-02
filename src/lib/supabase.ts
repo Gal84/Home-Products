@@ -16,6 +16,7 @@ function db() {
 }
 
 export class HomeNotFound extends Error {}
+export class PinLocked extends Error {}
 
 // A stalled request would otherwise block saving indefinitely.
 const timeout = () => AbortSignal.timeout(15_000);
@@ -24,6 +25,13 @@ export async function createHome(code: string, data: HomeData): Promise<number> 
   const { data: version, error } = await db().rpc('hp_create_home', { p_code: code, p_data: data }).abortSignal(timeout());
   if (error) throw new Error(error.message);
   return version as number;
+}
+
+/** Trades a 4-digit personal PIN for the apartment's long code; null when the PIN is unknown. */
+export async function pinLogin(pin: string): Promise<string | null> {
+  const { data, error } = await db().rpc('hp_pin_login', { p_pin: pin }).abortSignal(timeout());
+  if (error) throw error.message.includes('pin_locked') ? new PinLocked() : new Error(error.message);
+  return (data as string | null) ?? null;
 }
 
 export async function loadHome(code: string): Promise<{ data: HomeData; version: number }> {

@@ -5,7 +5,7 @@ import { DEFAULT_PROFILE } from '../planner/templates';
 import { newHomeCode, normalizeCode } from '../lib/id';
 import { emptyHome } from '../lib/store';
 import { homeCache } from '../lib/storage';
-import { createHome, HomeNotFound, loadHome, supabaseConfigured } from '../lib/supabase';
+import { createHome, HomeNotFound, loadHome, pinLogin, PinLocked, supabaseConfigured } from '../lib/supabase';
 import { PlannerWizard } from './PlannerWizard';
 import { Apartment3D } from './Apartment3D';
 
@@ -23,16 +23,26 @@ export function Gate({ onEnter, notice }: Props) {
   const [copied, setCopied] = useState(false);
 
   const open = async () => {
-    const c = normalizeCode(code);
-    if (c.length < 12) return setError('הקוד קצר מדי — בדקו שהעתקתם את כולו.');
+    const typed = normalizeCode(code);
+    // Four digits is a personal PIN; anything else is the full apartment code.
+    const isPin = /^\d{4}$/.test(typed);
+    if (!isPin && typed.length < 12) return setError('הקוד קצר מדי — הזינו קוד אישי בן 4 ספרות או את קוד הדירה המלא.');
     setBusy(true);
     setError(null);
     try {
+      const c = isPin ? await pinLogin(typed) : typed;
+      if (!c) return setError('הקוד האישי שגוי.');
       const remote = await loadHome(c);
       homeCache.set(c, { ...remote, dirty: false });
       onEnter(c);
     } catch (e) {
-      setError(e instanceof HomeNotFound ? 'לא נמצאה דירה עם הקוד הזה.' : 'אין חיבור לשרת כרגע. נסו שוב בעוד רגע.');
+      setError(
+        e instanceof PinLocked
+          ? 'היו יותר מדי ניסיונות שגויים. נסו שוב מאוחר יותר, או היכנסו עם קוד הדירה המלא.'
+          : e instanceof HomeNotFound
+            ? 'לא נמצאה דירה עם הקוד הזה.'
+            : 'אין חיבור לשרת כרגע. נסו שוב בעוד רגע.',
+      );
     } finally {
       setBusy(false);
     }
@@ -104,6 +114,9 @@ export function Gate({ onEnter, notice }: Props) {
             <div>
               <div className="eyebrow">כניסה</div>
               <h2>יש לכם קוד דירה?</h2>
+              <p className="hint" style={{ marginTop: 6 }}>
+                קוד אישי בן 4 ספרות, או קוד הדירה המלא.
+              </p>
             </div>
             <form
               onSubmit={(e) => {
@@ -115,7 +128,8 @@ export function Gate({ onEnter, notice }: Props) {
               <input
                 className="input num"
                 dir="ltr"
-                placeholder="HOME-XXXX-XXXX-XXXX-XXXX"
+                placeholder="1234 / HOME-XXXX-XXXX-XXXX-XXXX"
+                aria-label="קוד אישי או קוד דירה"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 autoComplete="off"
