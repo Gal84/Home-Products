@@ -1182,6 +1182,38 @@ a {
     opacity: 0.45;
   }
 }
+/* Pause mark, shown while the mouse holds the frame. */
+.apt3d-hold {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 14px;
+  inset-inline-end: 14px;
+  display: flex;
+  gap: 4px;
+  padding: 8px 9px;
+  background: rgba(30, 27, 24, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transform: scale(0.9);
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+  pointer-events: none;
+}
+.apt3d-hold i {
+  width: 3px;
+  height: 11px;
+  background: #f3eee6;
+}
+.apt3d.paused .apt3d-hold {
+  opacity: 1;
+  transform: none;
+  transition-duration: 220ms;
+}
+.apt3d.paused .apt3d-label i {
+  animation-play-state: paused;
+}
 /* How far through the loop the tour is: a hairline along the bottom edge. */
 .apt3d-progress {
   position: absolute;

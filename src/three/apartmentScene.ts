@@ -1292,11 +1292,17 @@ function makePath() {
 
 // ─── Mount ──────────────────────────────────────────────────────────────────
 
+export interface ApartmentTour {
+  /** Eases the tour to a stop (true) or back up to speed (false). */
+  setPaused: (paused: boolean) => void;
+  dispose: () => void;
+}
+
 /**
  * Mounts the tour into `container`. `onLabel` fires when the caption changes; `onFrame` gets the
  * loop progress (0–1) every frame, for a progress line.
  */
-export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame?: (progress: number) => void): () => void {
+export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame?: (progress: number) => void): ApartmentTour {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const small = Math.min(window.innerWidth, window.innerHeight) < 700;
 
@@ -1425,13 +1431,24 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
   let raf = 0;
   let clock = 0;
   let last = performance.now();
+  // Playback rate: glides towards 0 when paused and back to 1, so the camera settles to a stop
+  // (about a quarter of a second) instead of freezing mid-motion.
+  let rate = 1;
+  let targetRate = 1;
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
     // Cap the step so a dropped frame is a short pause, not a jump.
-    const dt = Math.min(0.05, (now - last) / 1000);
+    const real = (now - last) / 1000;
+    const dt = Math.min(0.05, real);
     last = now;
     if (!visible || document.hidden) return;
-    clock += dt;
+    // Eased on wall-clock time, so the stop takes the same moment on slow devices too.
+    rate += (targetRate - rate) * (1 - Math.exp(-Math.min(real, 0.5) / 0.09));
+    if (targetRate === 0 && rate < 0.003) {
+      if (rate === 0) return; // settled: keep the last frame on screen
+      rate = 0;
+    }
+    clock += dt * rate;
     place(clock);
     for (const a of animators) a(clock);
     draw();
@@ -1445,7 +1462,7 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
   resize();
   if (!reduced && !(frozen > 0)) raf = requestAnimationFrame(frame);
 
-  return () => {
+  const dispose = () => {
     cancelAnimationFrame(raf);
     ro.disconnect();
     io.disconnect();
@@ -1466,4 +1483,5 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
     renderer.dispose();
     renderer.domElement.remove();
   };
+  return { dispose, setPaused: (p) => (targetRate = p ? 0 : 1) };
 }
