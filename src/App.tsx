@@ -226,6 +226,7 @@ function HomeView({
               onAddItem={() => addItem(c.id)}
               onOpenItem={(item) => setItemDraft({ item, categoryId: item.categoryId })}
               onTogglePurchased={(item) => update((d) => ops.updateItem(d, item.id, { purchased: !item.purchased }))}
+              onToggleExcluded={(item) => update((d) => ops.updateItem(d, item.id, { excluded: !item.excluded }))}
             />
           );
         })

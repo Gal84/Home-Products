@@ -30,7 +30,7 @@ export function Masthead({ data, cats, items, status, onRename, onPlanner, onSet
   const t = totals(items);
   const perCat = cats.map((c) => ({ c, t: totals(items.filter((i) => i.categoryId === c.id)) }));
   const maxCat = Math.max(1, ...perCat.map((x) => x.t.total));
-  const mustLeft = items.filter((i) => i.priority === 'must' && !i.purchased).length;
+  const mustLeft = items.filter((i) => i.priority === 'must' && !i.purchased && !i.excluded).length;
 
   const specs = [
     `${p.rooms} חדרים`,

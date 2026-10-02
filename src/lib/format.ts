@@ -36,6 +36,7 @@ export interface Totals {
 export function totals(items: Item[]): Totals {
   const t: Totals = { total: 0, bought: 0, left: 0, count: 0, boughtCount: 0 };
   for (const it of items) {
+    if (it.excluded) continue;
     const v = lineTotal(it);
     t.total += v;
     t.count++;
