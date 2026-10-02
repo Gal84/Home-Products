@@ -3,6 +3,8 @@ import type { Category, HomeData, Item } from '../types';
 import { bidi, catNo, num, shekel, totals, type Totals } from '../lib/format';
 import type { SyncStatus } from '../lib/useHome';
 import { IconPlan, IconSettings, IconShare } from './Icons';
+import { LangSwitch } from './LangSwitch';
+import { t, tr } from '../i18n';
 
 const SYNC_LABEL: Record<SyncStatus, string> = {
   loading: 'טוען…',
@@ -27,26 +29,30 @@ interface Props {
 export function Masthead({ data, cats, items, status, onRename, onPlanner, onSettings, onShare }: Props) {
   const [editing, setEditing] = useState(false);
   const p = data.profile;
-  const t = totals(items);
+  const tot = totals(items);
   const perCat = cats.map((c) => ({ c, t: totals(items.filter((i) => i.categoryId === c.id)) }));
   const maxCat = Math.max(1, ...perCat.map((x) => x.t.total));
   const mustLeft = items.filter((i) => i.priority === 'must' && !i.purchased && !i.excluded).length;
 
   const specs = [
-    `${p.rooms} חדרים`,
-    p.aptType === 'garden' && `דירת גן${p.gardenArea ? ` · גינה ${p.gardenArea} מ״ר` : ''}`,
-    p.aptType === 'penthouse' && `פנטהאוז${p.roofArea ? ` · גג ${p.roofArea} מ״ר` : ''}${p.duplex ? ' · דופלקס' : ''}`,
-    p.aptType !== 'garden' && p.floor && `קומה ${p.floor}`,
-    p.toilets && `${p.toilets} שירותים`,
-    p.showers && `${p.showers > 1 ? `${p.showers} חדרי ` : ''}מקלחת`,
-    p.bathtubs && `${p.bathtubs > 1 ? `${p.bathtubs} חדרי ` : ''}אמבטיה`,
-    p.balconyArea && `מרפסת ${p.balconyArea} מ״ר`,
-    p.kitchenIsland && `אי ${p.kitchenIsland.length}×${p.kitchenIsland.depth}`,
-    p.storageArea && `מחסן ${p.storageArea} מ״ר`,
-    p.parking && `${p.parking === 1 ? 'חניה' : `${p.parking} חניות`}${p.parkingCovered ? (p.parking === 1 ? ' מקורה' : ' מקורות') : ''}`,
-    p.acType === 'central' && 'מיני-מרכזי',
-    p.cats && `${p.cats === 1 ? 'חתול' : `${p.cats} חתולים`}`,
-    p.dogs && `${p.dogs === 1 ? 'כלב' : `${p.dogs} כלבים`}`,
+    t('{n} חדרים', { n: p.rooms }),
+    p.aptType === 'garden' && `${t('דירת גן')}${p.gardenArea ? ` · ${t('גינה {n} מ״ר', { n: p.gardenArea })}` : ''}`,
+    p.aptType === 'penthouse' &&
+      `${t('פנטהאוז')}${p.roofArea ? ` · ${t('גג {n} מ״ר', { n: p.roofArea })}` : ''}${p.duplex ? ` · ${t('דופלקס')}` : ''}`,
+    p.aptType !== 'garden' && p.floor && t('קומה {n}', { n: p.floor }),
+    p.toilets && t('{n} שירותים', { n: p.toilets }),
+    p.showers && (p.showers > 1 ? t('{n} חדרי מקלחת', { n: p.showers }) : t('מקלחת')),
+    p.bathtubs && (p.bathtubs > 1 ? t('{n} חדרי אמבטיה', { n: p.bathtubs }) : t('אמבטיה')),
+    p.balconyArea && t('מרפסת {n} מ״ר', { n: p.balconyArea }),
+    p.kitchenIsland && t('אי {a}×{b}', { a: p.kitchenIsland.length, b: p.kitchenIsland.depth }),
+    p.storageArea && t('מחסן {n} מ״ר', { n: p.storageArea }),
+    p.parking &&
+      (p.parking === 1
+        ? t(p.parkingCovered ? 'חניה מקורה' : 'חניה')
+        : t(p.parkingCovered ? '{n} חניות מקורות' : '{n} חניות', { n: p.parking })),
+    p.acType === 'central' && t('מיני-מרכזי'),
+    p.cats && t('{n} חתולים', { n: p.cats }),
+    p.dogs && t('{n} כלבים', { n: p.dogs }),
   ].filter(Boolean) as string[];
 
   return (
@@ -54,20 +60,21 @@ export function Masthead({ data, cats, items, status, onRename, onPlanner, onSet
       <header className="topline">
         <div className="brand">
           <b>N°01</b>
-          <span className="eyebrow">קטלוג רכישות · דירה חדשה</span>
+          <span className="eyebrow">{t('קטלוג רכישות · דירה חדשה')}</span>
         </div>
         <div className="actions">
-          <span className="sync" data-s={status} role="status">
+          <span className="sync" data-s={status} role="status" title={t(SYNC_LABEL[status])}>
             <i />
-            {SYNC_LABEL[status]}
+            <span className="sync-text">{t(SYNC_LABEL[status])}</span>
           </span>
-          <button className="icon-btn" onClick={onShare} aria-label="שיתוף" title="שיתוף">
+          <LangSwitch />
+          <button className="icon-btn" onClick={onShare} aria-label={t('שיתוף')} title={t('שיתוף')}>
             <IconShare />
           </button>
-          <button className="icon-btn" onClick={onPlanner} aria-label="מתכנן הדירה" title="מתכנן הדירה">
+          <button className="icon-btn" onClick={onPlanner} aria-label={t('מתכנן הדירה')} title={t('מתכנן הדירה')}>
             <IconPlan />
           </button>
-          <button className="icon-btn" onClick={onSettings} aria-label="הגדרות" title="הגדרות">
+          <button className="icon-btn" onClick={onSettings} aria-label={t('הגדרות')} title={t('הגדרות')}>
             <IconSettings />
           </button>
         </div>
@@ -75,17 +82,17 @@ export function Masthead({ data, cats, items, status, onRename, onPlanner, onSet
 
       <section className="masthead">
         <div>
-          <div className="eyebrow">גיליון רכישות · {new Date().getFullYear()}</div>
-          <h1 onClick={() => setEditing(true)} title="לחצו לשינוי השם">
+          <div className="eyebrow">{t('גיליון רכישות · {y}', { y: new Date().getFullYear() })}</div>
+          <h1 onClick={() => setEditing(true)} title={t('לחצו לשינוי השם')}>
             {editing ? (
               <input
                 autoFocus
-                defaultValue={p.name}
-                aria-label="שם הדירה"
+                defaultValue={tr(p.name)}
+                aria-label={t('שם הדירה')}
                 onBlur={(e) => {
                   setEditing(false);
                   const v = e.target.value.trim();
-                  if (v && v !== p.name) onRename(v);
+                  if (v && v !== p.name && v !== tr(p.name)) onRename(v);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -93,7 +100,7 @@ export function Masthead({ data, cats, items, status, onRename, onPlanner, onSet
                 }}
               />
             ) : (
-              p.name
+              tr(p.name)
             )}
           </h1>
           <div className="specs">
@@ -102,29 +109,32 @@ export function Masthead({ data, cats, items, status, onRename, onPlanner, onSet
             ))}
           </div>
           <p className="lede">
-            {t.count === 0
-              ? 'הרשימה ריקה. הוסיפו קטגוריה או הפעילו את מתכנן הדירה.'
-              : `נרכשו ${num(t.boughtCount)} מתוך ${num(t.count)} מוצרים ב-${cats.length} קטגוריות. ${
-                  mustLeft ? `נשארו ${num(mustLeft)} פריטי חובה לקנות.` : 'כל פריטי החובה נקנו.'
-                }`}
+            {tot.count === 0
+              ? t('הרשימה ריקה. הוסיפו קטגוריה או הפעילו את מתכנן הדירה.')
+              : `${t('נרכשו {a} מתוך {b} מוצרים ב-{c} קטגוריות.', {
+                  a: num(tot.boughtCount),
+                  b: num(tot.count),
+                  n: tot.count,
+                  c: cats.length,
+                })} ${mustLeft ? t('נשארו {n} פריטי חובה לקנות.', { n: num(mustLeft), k: mustLeft }) : t('כל פריטי החובה נקנו.')}`}
           </p>
         </div>
 
-        <Ledger t={t} budget={data.budget} />
+        <Ledger t={tot} budget={data.budget} />
       </section>
 
       {perCat.length > 0 && (
-        <nav className="contents" aria-label="תוכן העניינים">
+        <nav className="contents" aria-label={t('תוכן העניינים')}>
           <div className="contents-head">
-            <h2>תוכן העניינים</h2>
-            <span className="eyebrow">{perCat.length} קטגוריות</span>
+            <h2>{t('תוכן העניינים')}</h2>
+            <span className="eyebrow">{t('{n} קטגוריות', { n: perCat.length })}</span>
           </div>
           <ol className="toc">
             {perCat.map(({ c, t: ct }, i) => (
               <li key={c.id} className={ct.count > 0 && ct.boughtCount === ct.count ? 'done' : undefined}>
                 <a href={`#cat-${c.id}`}>
                   <span className="t-no">{catNo(i)}</span>
-                  <span className="t-name">{c.name}</span>
+                  <span className="t-name">{tr(c.name)}</span>
                   <span className="t-share">
                     <i style={{ width: `${(ct.total / maxCat) * 100}%`, background: c.color }} />
                   </span>
@@ -139,42 +149,42 @@ export function Masthead({ data, cats, items, status, onRename, onPlanner, onSet
   );
 }
 
-function Ledger({ t, budget }: { t: Totals; budget: number | null }) {
-  const scale = Math.max(t.total, budget ?? 0, 1);
-  const pct = t.total ? Math.round((t.bought / t.total) * 100) : 0;
+function Ledger({ t: tot, budget }: { t: Totals; budget: number | null }) {
+  const scale = Math.max(tot.total, budget ?? 0, 1);
+  const pct = tot.total ? Math.round((tot.bought / tot.total) * 100) : 0;
   return (
     <div className="ledger">
       <div className="grand">
-        <span className="eyebrow">סה״כ כולל</span>
-        <span className="num">{shekel(t.total)}</span>
+        <span className="eyebrow">{t('סה״כ כולל')}</span>
+        <span className="num">{shekel(tot.total)}</span>
       </div>
       <div className="split">
         <div className="bought">
-          <span className="eyebrow">נרכש · {pct}%</span>
-          <span className="num">{shekel(t.bought)}</span>
+          <span className="eyebrow">{t('נרכש · {n}%', { n: pct })}</span>
+          <span className="num">{shekel(tot.bought)}</span>
         </div>
         <div>
-          <span className="eyebrow">נותר לרכישה</span>
-          <span className="num">{shekel(t.left)}</span>
+          <span className="eyebrow">{t('נותר לרכישה')}</span>
+          <span className="num">{shekel(tot.left)}</span>
         </div>
       </div>
       <div className="bar" aria-hidden>
-        <i style={{ width: `${(t.total / scale) * 100}%`, background: 'var(--rule)' }} />
-        <i style={{ width: `${(t.bought / scale) * 100}%` }} />
+        <i style={{ width: `${(tot.total / scale) * 100}%`, background: 'var(--rule)' }} />
+        <i style={{ width: `${(tot.bought / scale) * 100}%` }} />
         {budget ? <b style={{ insetInlineStart: `calc(${(budget / scale) * 100}% - 1px)` }} /> : null}
       </div>
       {budget ? (
         <div className="budget">
           <span>
-            תקציב <span className="num">{shekel(budget)}</span>
+            {t('תקציב')} <span className="num">{shekel(budget)}</span>
           </span>
-          {t.total > budget ? (
+          {tot.total > budget ? (
             <span className="over">
-              חריגה של <span className="num">{shekel(t.total - budget)}</span>
+              {t('חריגה של')} <span className="num">{shekel(tot.total - budget)}</span>
             </span>
           ) : (
             <span>
-              מרווח <span className="num">{shekel(budget - t.total)}</span>
+              {t('מרווח')} <span className="num">{shekel(budget - tot.total)}</span>
             </span>
           )}
         </div>

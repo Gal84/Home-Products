@@ -1,9 +1,17 @@
 import type { Item, Priority } from '../types';
+import { getLang } from '../i18n';
 
-const nf = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 });
+const NF = {
+  he: new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 }),
+  ru: new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }),
+};
 
-export const shekel = (n: number) => `₪${nf.format(Math.round(n))}`;
-export const num = (n: number) => nf.format(n);
+// Hebrew writes the sign first (₪9,500); Russian after the amount (9 500 ₪).
+export const shekel = (n: number) => {
+  const v = NF[getLang()].format(Math.round(n));
+  return getLang() === 'ru' ? `${v}\u00a0₪` : `₪${v}`;
+};
+export const num = (n: number) => NF[getLang()].format(n);
 export const catNo = (i: number) => `N°${String(i + 1).padStart(2, '0')}`;
 
 /**

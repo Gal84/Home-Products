@@ -8,6 +8,8 @@ import { homeCache } from '../lib/storage';
 import { createHome, HomeNotFound, loadHome, pinLogin, PinLocked, supabaseConfigured } from '../lib/supabase';
 import { PlannerWizard } from './PlannerWizard';
 import { Apartment3D } from './Apartment3D';
+import { LangSwitch } from './LangSwitch';
+import { t } from '../i18n';
 
 interface Props {
   onEnter: (code: string) => void;
@@ -27,22 +29,24 @@ export function Gate({ onEnter, notice }: Props) {
     const typed = normalizeCode(code);
     // Four digits is a personal PIN; anything else is the full apartment code.
     const isPin = /^\d{4}$/.test(typed);
-    if (!isPin && typed.length < 12) return setError('הקוד קצר מדי — הזינו קוד אישי בן 4 ספרות או את קוד הדירה המלא.');
+    if (!isPin && typed.length < 12) return setError(t('הקוד קצר מדי — הזינו קוד אישי בן 4 ספרות או את קוד הדירה המלא.'));
     setBusy(true);
     setError(null);
     try {
       const c = isPin ? await pinLogin(typed) : typed;
-      if (!c) return setError('הקוד האישי שגוי.');
+      if (!c) return setError(t('הקוד האישי שגוי.'));
       const remote = await loadHome(c);
       homeCache.set(c, { ...remote, dirty: false });
       onEnter(c);
     } catch (e) {
       setError(
-        e instanceof PinLocked
-          ? 'היו יותר מדי ניסיונות שגויים. נסו שוב מאוחר יותר, או היכנסו עם קוד הדירה המלא.'
-          : e instanceof HomeNotFound
-            ? 'לא נמצאה דירה עם הקוד הזה.'
-            : 'אין חיבור לשרת כרגע. נסו שוב בעוד רגע.',
+        t(
+          e instanceof PinLocked
+            ? 'היו יותר מדי ניסיונות שגויים. נסו שוב מאוחר יותר, או היכנסו עם קוד הדירה המלא.'
+            : e instanceof HomeNotFound
+              ? 'לא נמצאה דירה עם הקוד הזה.'
+              : 'אין חיבור לשרת כרגע. נסו שוב בעוד רגע.',
+        ),
       );
     } finally {
       setBusy(false);
@@ -60,7 +64,7 @@ export function Gate({ onEnter, notice }: Props) {
       setPlanning(false);
       setCreated(c);
     } catch {
-      setError('לא הצלחנו ליצור את הדירה. בדקו חיבור ונסו שוב.');
+      setError(t('לא הצלחנו ליצור את הדירה. בדקו חיבור ונסו שוב.'));
       setPlanning(false);
     } finally {
       setBusy(false);
@@ -79,14 +83,17 @@ export function Gate({ onEnter, notice }: Props) {
   return (
     <div className="gate">
       <section className="gate-art">
-        <div className="eyebrow">N°01 — קטלוג רכישות לדירה חדשה</div>
+        <div className="gate-top">
+          <div className="eyebrow">{t('N°01 — קטלוג רכישות לדירה חדשה')}</div>
+          <LangSwitch />
+        </div>
         <Apartment3D fallback={<FloorPlan />} />
         <h1>
-          דירה
+          {t('דירה')}
           <br />
-          <em>ריקה.</em>
+          <em>{t('ריקה.')}</em>
           <br />
-          רשימה מלאה.
+          {t('רשימה מלאה.')}
         </h1>
       </section>
 
@@ -94,29 +101,29 @@ export function Gate({ onEnter, notice }: Props) {
         {created ? (
           <>
             <div>
-              <div className="eyebrow">הדירה נוצרה</div>
-              <h2>שמרו את קוד הדירה</h2>
+              <div className="eyebrow">{t('הדירה נוצרה')}</div>
+              <h2>{t('שמרו את קוד הדירה')}</h2>
             </div>
             <p className="hint" style={{ fontSize: 15 }}>
-              זה המפתח היחיד לרשימה. מי שיש לו את הקוד (או את קישור השיתוף) יכול לראות ולערוך — שלחו אותו רק לבני הבית.
+              {t('זה המפתח היחיד לרשימה. מי שיש לו את הקוד (או את קישור השיתוף) יכול לראות ולערוך — שלחו אותו רק לבני הבית.')}
             </p>
             <div className="code-box">
               <span className="num">{created}</span>
               <button className="btn sm" onClick={() => copy(created)}>
-                {copied ? 'הועתק ✓' : 'העתקה'}
+                {t(copied ? 'הועתק ✓' : 'העתקה')}
               </button>
             </div>
             <button className="btn primary" onClick={() => onEnter(created)}>
-              לרשימה שלי ←
+              {t('לרשימה שלי ←')}
             </button>
           </>
         ) : (
           <>
             <div>
-              <div className="eyebrow">כניסה</div>
-              <h2>יש לכם קוד דירה?</h2>
+              <div className="eyebrow">{t('כניסה')}</div>
+              <h2>{t('יש לכם קוד דירה?')}</h2>
               <p className="hint" style={{ marginTop: 6 }}>
-                קוד אישי בן 4 ספרות, או קוד הדירה המלא.
+                {t('קוד אישי בן 4 ספרות, או קוד הדירה המלא.')}
               </p>
             </div>
             <form
@@ -133,7 +140,7 @@ export function Gate({ onEnter, notice }: Props) {
                   dir="ltr"
                   type={reveal ? 'text' : 'password'}
                   placeholder="1234 / HOME-XXXX-XXXX-XXXX-XXXX"
-                  aria-label="קוד אישי או קוד דירה"
+                  aria-label={t('קוד אישי או קוד דירה')}
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   autoComplete="current-password"
@@ -145,25 +152,25 @@ export function Gate({ onEnter, notice }: Props) {
                   className="code-reveal"
                   onClick={() => setReveal((r) => !r)}
                   aria-pressed={reveal}
-                  aria-label={reveal ? 'הסתרת הקוד' : 'הצגת הקוד'}
+                  aria-label={t(reveal ? 'הסתרת הקוד' : 'הצגת הקוד')}
                 >
-                  {reveal ? 'הסתר' : 'הצג'}
+                  {t(reveal ? 'הסתר' : 'הצג')}
                 </button>
               </div>
               <button className="btn primary" disabled={busy || !code.trim()}>
-                כניסה לרשימה
+                {t('כניסה לרשימה')}
               </button>
             </form>
-            <div className="or">או</div>
+            <div className="or">{t('או')}</div>
             <div style={{ display: 'grid', gap: 12 }}>
               <p className="hint" style={{ fontSize: 15 }}>
-                מתחילים מאפס? מזינים כמה חדרים, מרפסת, מחסן וחניות — ומקבלים רשימת קניות מלאה עם מחירים, שאפשר לערוך בכל רגע.
+                {t('מתחילים מאפס? מזינים כמה חדרים, מרפסת, מחסן וחניות — ומקבלים רשימת קניות מלאה עם מחירים, שאפשר לערוך בכל רגע.')}
               </p>
               <button className="btn accent" onClick={() => setPlanning(true)} disabled={busy || !supabaseConfigured}>
-                תכנון דירה חדשה
+                {t('תכנון דירה חדשה')}
               </button>
             </div>
-            {!supabaseConfigured && <div className="error">חסרים פרטי Supabase בהגדרות הבנייה.</div>}
+            {!supabaseConfigured && <div className="error">{t('חסרים פרטי Supabase בהגדרות הבנייה.')}</div>}
             {error && <div className="error">{error}</div>}
           </>
         )}
@@ -199,8 +206,12 @@ function FloorPlan() {
         <text x="370" y="45">04</text>
         <text x="60" y="140">05</text>
         <text x="330" y="175">06</text>
-        <text x="185" y="167" fill="var(--accent)">אי</text>
-        <text x="300" y="235" fill="var(--accent)">מרפסת 20</text>
+        <text x="185" y="167" fill="var(--accent)">
+          {t('אי')}
+        </text>
+        <text x="300" y="235" fill="var(--accent)">
+          {t('מרפסת 20')}
+        </text>
       </g>
     </svg>
   );

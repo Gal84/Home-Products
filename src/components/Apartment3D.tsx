@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { bidi } from '../lib/format';
+import { tr } from '../i18n';
 import type { ApartmentTour } from '../three/apartmentScene';
 
 interface Caption {
@@ -78,7 +79,7 @@ export function Apartment3D({ fallback }: { fallback: ReactNode }) {
             onAnimationEnd={() => c.leaving && setCaptions((prev) => prev.filter((x) => x.id !== c.id))}
           >
             <i />
-            {bidi(c.text)}
+            {bidi(tr(c.text))}
           </div>
         ))}
       </div>

@@ -1,5 +1,6 @@
 import type { Category, Item } from '../types';
 import { bidi, catNo, lineTotal, num, PRIORITY_LABEL, shekel, totals } from '../lib/format';
+import { t, tr, useLang } from '../i18n';
 import { IconCheck, IconChevron, IconDown, IconEdit, IconMinus, IconPlus, IconRestore, IconUp } from './Icons';
 
 interface Props {
@@ -22,8 +23,9 @@ interface Props {
 
 export function CategorySection(props: Props) {
   const { index, category: c, allItems, shown, collapsed, filtering } = props;
-  const t = totals(allItems);
-  const pct = t.count ? (t.boughtCount / t.count) * 100 : 0;
+  const tot = totals(allItems);
+  const pct = tot.count ? (tot.boughtCount / tot.count) * 100 : 0;
+  const rtl = useLang() === 'he';
 
   return (
     <section id={`cat-${c.id}`} className={`cat${collapsed ? ' collapsed' : ''}`} style={{ ['--cat' as string]: c.color }}>
@@ -35,37 +37,36 @@ export function CategorySection(props: Props) {
         <div className="cat-title">
           <h2>
             <button onClick={props.onToggleCollapse} aria-expanded={!collapsed}>
-              {c.name}
+              {tr(c.name)}
             </button>
           </h2>
           <div className="meta">
             <span>{catNo(index)}</span>
-            {c.note && <span>{bidi(c.note)}</span>}
-            <span>
-              {num(t.boughtCount)}/{num(t.count)} נרכשו
-            </span>
+            {c.note && <span>{bidi(tr(c.note))}</span>}
+            <span>{t('{a}/{b} נרכשו', { a: num(tot.boughtCount), b: num(tot.count) })}</span>
           </div>
         </div>
         <div className="cat-sum">
-          <span className="num">{shekel(t.total)}</span>
+          <span className="num">{shekel(tot.total)}</span>
           <span className="sub">
-            נרכש <span className="num">{shekel(t.bought)}</span> · נותר <span className="num">{shekel(t.left)}</span>
+            {t('נרכש')} <span className="num">{shekel(tot.bought)}</span> · {t('נותר')} <span className="num">{shekel(tot.left)}</span>
           </span>
           <div className="cat-tools">
-            <button className="icon-btn" onClick={props.onAddItem} aria-label={`הוספת מוצר ל${c.name}`} title="הוספת מוצר">
+            <button className="icon-btn" onClick={props.onAddItem} aria-label={t('הוספת מוצר ל{c}', { c: tr(c.name) })} title={t('הוספת מוצר')}>
               <IconPlus />
             </button>
-            <button className="icon-btn" onClick={props.onEdit} aria-label={`עריכת ${c.name}`} title="עריכת קטגוריה">
+            <button className="icon-btn" onClick={props.onEdit} aria-label={t('עריכת {c}', { c: tr(c.name) })} title={t('עריכת קטגוריה')}>
               <IconEdit />
             </button>
-            <button className="icon-btn" onClick={() => props.onMove(-1)} disabled={props.isFirst} aria-label="הזזה למעלה" title="הזזה למעלה">
+            <button className="icon-btn" onClick={() => props.onMove(-1)} disabled={props.isFirst} aria-label={t('הזזה למעלה')} title={t('הזזה למעלה')}>
               <IconUp />
             </button>
-            <button className="icon-btn" onClick={() => props.onMove(1)} disabled={props.isLast} aria-label="הזזה למטה" title="הזזה למטה">
+            <button className="icon-btn" onClick={() => props.onMove(1)} disabled={props.isLast} aria-label={t('הזזה למטה')} title={t('הזזה למטה')}>
               <IconDown />
             </button>
-            <button className="icon-btn" onClick={props.onToggleCollapse} aria-label={collapsed ? 'פתיחה' : 'קיפול'} title={collapsed ? 'פתיחה' : 'קיפול'}>
-              <IconChevron className="chev" style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+            <button className="icon-btn" onClick={props.onToggleCollapse} aria-label={t(collapsed ? 'פתיחה' : 'קיפול')} title={t(collapsed ? 'פתיחה' : 'קיפול')}>
+              {/* Points back towards the reading direction while collapsed. */}
+              <IconChevron className="chev" style={{ transform: collapsed ? (rtl ? 'rotate(0deg)' : 'rotate(180deg)') : 'rotate(-90deg)' }} />
             </button>
           </div>
         </div>
@@ -77,7 +78,7 @@ export function CategorySection(props: Props) {
       {!collapsed && (
         <>
           {shown.length === 0 ? (
-            <div className="empty-cat">{filtering ? 'אין מוצרים שמתאימים לסינון.' : 'עוד אין כאן מוצרים.'}</div>
+            <div className="empty-cat">{t(filtering ? 'אין מוצרים שמתאימים לסינון.' : 'עוד אין כאן מוצרים.')}</div>
           ) : (
             <ul className="items">
               {shown.map((it) => (
@@ -92,7 +93,7 @@ export function CategorySection(props: Props) {
             </ul>
           )}
           <div className="add-row">
-            <button onClick={props.onAddItem}>+ הוספת מוצר ל{c.name}</button>
+            <button onClick={props.onAddItem}>+ {t('הוספת מוצר ל{c}', { c: tr(c.name) })}</button>
           </div>
         </>
       )}
@@ -101,7 +102,8 @@ export function CategorySection(props: Props) {
 }
 
 function ItemRow({ item, onOpen, onToggle, onExclude }: { item: Item; onOpen: () => void; onToggle: () => void; onExclude: () => void }) {
-  const sub = [item.store, item.notes].filter(Boolean).join(' · ');
+  const name = tr(item.name);
+  const sub = [item.store, tr(item.notes)].filter(Boolean).join(' · ');
   const paid = item.actualPrice != null;
   return (
     <li className={`item${item.purchased ? ' bought' : ''}${item.excluded ? ' excluded' : ''}`}>
@@ -109,16 +111,16 @@ function ItemRow({ item, onOpen, onToggle, onExclude }: { item: Item; onOpen: ()
         className="check"
         role="checkbox"
         aria-checked={item.purchased}
-        aria-label={`${item.name} — ${item.purchased ? 'נרכש' : 'לא נרכש'}`}
+        aria-label={`${name} — ${t(item.purchased ? 'נרכש' : 'לא נרכש')}`}
         onClick={onToggle}
       >
         <IconCheck />
       </button>
       <button className="name" onClick={onOpen}>
-        <b>{bidi(item.name)}</b>
+        <b>{bidi(name)}</b>
         {sub && <small>{bidi(sub)}</small>}
       </button>
-      <span className={`prio ${item.priority}`}>{PRIORITY_LABEL[item.priority]}</span>
+      <span className={`prio ${item.priority}`}>{t(PRIORITY_LABEL[item.priority])}</span>
       <span className="calc">
         {item.qty !== 1 ? (
           <>
@@ -130,14 +132,14 @@ function ItemRow({ item, onOpen, onToggle, onExclude }: { item: Item; onOpen: ()
       </span>
       <span className="total num">
         {shekel(lineTotal(item))}
-        {paid && <span className="paid">שולם בפועל</span>}
+        {paid && <span className="paid">{t('שולם בפועל')}</span>}
       </span>
       <button
         className="skip"
         onClick={onExclude}
         aria-pressed={!!item.excluded}
-        aria-label={item.excluded ? `החזרת ${item.name} לחישוב` : `הוצאת ${item.name} מהחישוב`}
-        title={item.excluded ? 'החזרה לחישוב' : 'הוצאה מהחישוב (בלי למחוק)'}
+        aria-label={t(item.excluded ? 'החזרת {n} לחישוב' : 'הוצאת {n} מהחישוב', { n: name })}
+        title={t(item.excluded ? 'החזרה לחישוב' : 'הוצאה מהחישוב (בלי למחוק)')}
       >
         {item.excluded ? <IconRestore /> : <IconMinus />}
       </button>

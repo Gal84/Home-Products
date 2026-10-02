@@ -1,6 +1,7 @@
 import type { Category, Priority } from '../types';
 import { PRIORITY_LABEL } from '../lib/format';
 import { IconPlus, IconSearch } from './Icons';
+import { t, tr } from '../i18n';
 
 export type SortKey = 'default' | 'name' | 'price-desc' | 'price-asc' | 'priority' | 'status';
 
@@ -41,10 +42,10 @@ export function Toolbar({ filters, onChange, categories, onAddCategory, onAddIte
     <div className="toolbar">
       <label className="search">
         <IconSearch />
-        <span className="sr-only">חיפוש</span>
-        <input className="input" type="search" placeholder="חיפוש מוצר או חנות…" value={filters.q} onChange={(e) => set('q', e.target.value)} />
+        <span className="sr-only">{t('חיפוש')}</span>
+        <input className="input" type="search" placeholder={t('חיפוש מוצר או חנות…')} value={filters.q} onChange={(e) => set('q', e.target.value)} />
       </label>
-      <div className="seg" role="group" aria-label="סטטוס">
+      <div className="seg" role="group" aria-label={t('סטטוס')}>
         {(
           [
             ['all', 'הכל'],
@@ -53,46 +54,46 @@ export function Toolbar({ filters, onChange, categories, onAddCategory, onAddIte
           ] as const
         ).map(([k, label]) => (
           <button key={k} aria-pressed={filters.status === k} onClick={() => set('status', k)}>
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
-      <select className="select" aria-label="קטגוריה" value={filters.category} onChange={(e) => set('category', e.target.value)}>
-        <option value="all">כל הקטגוריות</option>
+      <select className="select" aria-label={t('קטגוריה')} value={filters.category} onChange={(e) => set('category', e.target.value)}>
+        <option value="all">{t('כל הקטגוריות')}</option>
         {categories.map((c) => (
           <option key={c.id} value={c.id}>
-            {c.name}
+            {tr(c.name)}
           </option>
         ))}
       </select>
-      <select className="select" aria-label="עדיפות" value={filters.priority} onChange={(e) => set('priority', e.target.value as Filters['priority'])}>
-        <option value="all">כל העדיפויות</option>
+      <select className="select" aria-label={t('עדיפות')} value={filters.priority} onChange={(e) => set('priority', e.target.value as Filters['priority'])}>
+        <option value="all">{t('כל העדיפויות')}</option>
         {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => (
           <option key={p} value={p}>
-            {PRIORITY_LABEL[p]}
+            {t(PRIORITY_LABEL[p])}
           </option>
         ))}
       </select>
-      <select className="select" aria-label="מיון" value={filters.sort} onChange={(e) => set('sort', e.target.value as SortKey)}>
+      <select className="select" aria-label={t('מיון')} value={filters.sort} onChange={(e) => set('sort', e.target.value as SortKey)}>
         {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
           <option key={k} value={k}>
-            {SORT_LABEL[k]}
+            {t(SORT_LABEL[k])}
           </option>
         ))}
       </select>
       <span className="spacer" />
       <div className="tb-actions">
         <button className="btn" onClick={onAddCategory}>
-          <IconPlus width={16} height={16} /> קטגוריה
+          <IconPlus width={16} height={16} /> {t('קטגוריה')}
         </button>
         <button className="btn primary" onClick={onAddItem}>
-          <IconPlus width={16} height={16} /> מוצר
+          <IconPlus width={16} height={16} /> {t('מוצר')}
         </button>
       </div>
       {summary && (
         <div className="filter-note">
           {summary}
-          <button onClick={() => onChange({ ...NO_FILTERS, sort: filters.sort })}>ניקוי סינון</button>
+          <button onClick={() => onChange({ ...NO_FILTERS, sort: filters.sort })}>{t('ניקוי סינון')}</button>
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { APT_TYPE_LABEL, BEDROOM_LABEL, defaultBedrooms, withDefaults } from '..
 import { emptyHome, live } from '../lib/store';
 import { shekel, totals } from '../lib/format';
 import { Sheet, Stepper } from './Sheet';
+import { t, tr } from '../i18n';
 
 interface Props {
   initial: ApartmentProfile;
@@ -63,31 +64,31 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
   return (
     <Sheet
       wide
-      eyebrow="מתכנן הדירה"
-      title="ספרו לי על הדירה"
+      eyebrow={t('מתכנן הדירה')}
+      title={t('ספרו לי על הדירה')}
       onClose={onClose}
       footer={
         <>
           <button className="btn accent" disabled={busy} onClick={() => onApply(p, mode)}>
-            {hasData ? (mode === 'merge' ? 'הוספת החסר לרשימה' : 'בניית רשימה מחדש') : 'בניית הרשימה'}
+            {t(hasData ? (mode === 'merge' ? 'הוספת החסר לרשימה' : 'בניית רשימה מחדש') : 'בניית הרשימה')}
           </button>
           <button className="btn ghost" onClick={onClose}>
-            ביטול
+            {t('ביטול')}
           </button>
         </>
       }
     >
-      <h3 className="section-title">הדירה</h3>
+      <h3 className="section-title">{t('הדירה')}</h3>
       <label className="field">
-        <span>שם</span>
-        <input className="input" value={p.name} onChange={(e) => set('name', e.target.value)} />
+        <span>{t('שם')}</span>
+        <input className="input" value={tr(p.name)} onChange={(e) => set('name', e.target.value)} />
       </label>
       <div className="field">
-        <span>סוג הדירה</span>
-        <div className="seg" role="group" aria-label="סוג הדירה">
-          {(Object.keys(APT_TYPE_LABEL) as AptType[]).map((t) => (
-            <button type="button" key={t} aria-pressed={p.aptType === t} onClick={() => setAptType(t)}>
-              {APT_TYPE_LABEL[t]}
+        <span>{t('סוג הדירה')}</span>
+        <div className="seg" role="group" aria-label={t('סוג הדירה')}>
+          {(Object.keys(APT_TYPE_LABEL) as AptType[]).map((o) => (
+            <button type="button" key={o} aria-pressed={p.aptType === o} onClick={() => setAptType(o)}>
+              {t(APT_TYPE_LABEL[o])}
             </button>
           ))}
         </div>
@@ -95,27 +96,27 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
       <div className="grid-3">
         {p.aptType !== 'garden' && (
           <label className="field">
-            <span>קומה</span>
-            <Stepper label="קומה" value={p.floor} max={80} onChange={(v) => set('floor', v)} />
+            <span>{t('קומה')}</span>
+            <Stepper label={t('קומה')} value={p.floor} max={80} onChange={(v) => set('floor', v)} />
           </label>
         )}
         {p.aptType === 'garden' && (
           <label className="field">
-            <span>שטח הגינה (מ״ר)</span>
-            <Stepper label="שטח גינה" value={p.gardenArea} max={1000} step={5} onChange={(v) => set('gardenArea', v)} />
+            <span>{t('שטח הגינה (מ״ר)')}</span>
+            <Stepper label={t('שטח גינה')} value={p.gardenArea} max={1000} step={5} onChange={(v) => set('gardenArea', v)} />
           </label>
         )}
         {p.aptType === 'penthouse' && (
           <>
             <label className="field">
-              <span>מרפסת גג (מ״ר)</span>
-              <Stepper label="מרפסת גג" value={p.roofArea} max={500} step={5} onChange={(v) => set('roofArea', v)} />
+              <span>{t('מרפסת גג (מ״ר)')}</span>
+              <Stepper label={t('מרפסת גג')} value={p.roofArea} max={500} step={5} onChange={(v) => set('roofArea', v)} />
             </label>
             <label className="toggle" style={{ alignSelf: 'end' }}>
               <input type="checkbox" checked={p.duplex} onChange={(e) => set('duplex', e.target.checked)} />
               <span>
-                <b>דופלקס</b>
-                <small>שתי קומות עם מדרגות</small>
+                <b>{t('דופלקס')}</b>
+                <small>{t('שתי קומות עם מדרגות')}</small>
               </span>
             </label>
           </>
@@ -123,32 +124,32 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
       </div>
       <div className="grid-3">
         <label className="field">
-          <span>מספר חדרים (כולל סלון)</span>
-          <Stepper label="חדרים" value={p.rooms} min={1} max={12} onChange={setRooms} />
+          <span>{t('מספר חדרים (כולל סלון)')}</span>
+          <Stepper label={t('חדרים')} value={p.rooms} min={1} max={12} onChange={setRooms} />
         </label>
         <label className="field">
-          <span>חדרי שירותים</span>
-          <Stepper label="שירותים" value={p.toilets} max={6} onChange={(v) => set('toilets', v)} />
+          <span>{t('חדרי שירותים')}</span>
+          <Stepper label={t('שירותים')} value={p.toilets} max={6} onChange={(v) => set('toilets', v)} />
         </label>
         <label className="field">
-          <span>חדרי מקלחת</span>
-          <Stepper label="מקלחות" value={p.showers} max={4} onChange={(v) => set('showers', v)} />
+          <span>{t('חדרי מקלחת')}</span>
+          <Stepper label={t('מקלחות')} value={p.showers} max={4} onChange={(v) => set('showers', v)} />
         </label>
         <label className="field">
-          <span>חדרי אמבטיה</span>
-          <Stepper label="אמבטיות" value={p.bathtubs} max={4} onChange={(v) => set('bathtubs', v)} />
+          <span>{t('חדרי אמבטיה')}</span>
+          <Stepper label={t('אמבטיות')} value={p.bathtubs} max={4} onChange={(v) => set('bathtubs', v)} />
         </label>
       </div>
 
       {p.bedrooms.length > 0 && (
         <>
-          <h3 className="section-title">ייעוד החדרים</h3>
-          <p className="hint">חדר אחד הוא הסלון. לכל שאר החדרים בחרו ייעוד, ואפשר לרשום מידות ולסמן איזה חדר הוא הממ״ד.</p>
+          <h3 className="section-title">{t('ייעוד החדרים')}</h3>
+          <p className="hint">{t('חדר אחד הוא הסלון. לכל שאר החדרים בחרו ייעוד, ואפשר לרשום מידות ולסמן איזה חדר הוא הממ״ד.')}</p>
           <div className="room-list">
             {p.bedrooms.map((use, i) => (
               <div className="room-row" key={i}>
-                <span className="eyebrow">חדר {i + 1}</span>
-                <div className="seg" role="group" aria-label={`ייעוד חדר ${i + 1}`}>
+                <span className="eyebrow">{t('חדר {n}', { n: i + 1 })}</span>
+                <div className="seg" role="group" aria-label={t('ייעוד חדר {n}', { n: i + 1 })}>
                   {(Object.keys(BEDROOM_LABEL) as BedroomUse[]).map((u) => (
                     <button
                       type="button"
@@ -156,14 +157,14 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
                       aria-pressed={use === u}
                       onClick={() => set('bedrooms', p.bedrooms.map((b, j) => (j === i ? u : b)))}
                     >
-                      {BEDROOM_LABEL[u].replace('חדר ', '').replace('שינה ', '')}
+                      {t(BEDROOM_LABEL[u].replace('חדר ', '').replace('שינה ', ''))}
                     </button>
                   ))}
                 </div>
                 <input
                   className="input num room-size"
                   dir="ltr"
-                  aria-label={`מידות חדר ${i + 1}`}
+                  aria-label={t('מידות חדר {n}', { n: i + 1 })}
                   placeholder="3.50×3.20"
                   value={p.bedroomSizes[i] ?? ''}
                   onChange={(e) => setSize(i, e.target.value)}
@@ -174,7 +175,7 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
                   aria-pressed={p.mamad === i}
                   onClick={() => set('mamad', p.mamad === i ? null : i)}
                 >
-                  ממ״ד
+                  {t('ממ״ד')}
                 </button>
               </div>
             ))}
@@ -182,7 +183,7 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
         </>
       )}
 
-      <h3 className="section-title">מטבח</h3>
+      <h3 className="section-title">{t('מטבח')}</h3>
       <label className="toggle">
         <input
           type="checkbox"
@@ -190,110 +191,110 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
           onChange={(e) => set('kitchenIsland', e.target.checked ? { length: 150, depth: 90 } : null)}
         />
         <span>
-          <b>אי מטבח</b>
-          <small>כולל משטח, כיסאות בר ותאורה מעל</small>
+          <b>{t('אי מטבח')}</b>
+          <small>{t('כולל משטח, כיסאות בר ותאורה מעל')}</small>
         </span>
       </label>
       {p.kitchenIsland && (
         <div className="grid-2">
           <label className="field">
-            <span>אורך (ס״מ)</span>
-            <Stepper label="אורך אי" value={p.kitchenIsland.length} min={60} max={400} step={10} onChange={(v) => set('kitchenIsland', { ...p.kitchenIsland!, length: v })} />
+            <span>{t('אורך (ס״מ)')}</span>
+            <Stepper label={t('אורך אי')} value={p.kitchenIsland.length} min={60} max={400} step={10} onChange={(v) => set('kitchenIsland', { ...p.kitchenIsland!, length: v })} />
           </label>
           <label className="field">
-            <span>עומק (ס״מ)</span>
-            <Stepper label="עומק אי" value={p.kitchenIsland.depth} min={40} max={200} step={10} onChange={(v) => set('kitchenIsland', { ...p.kitchenIsland!, depth: v })} />
+            <span>{t('עומק (ס״מ)')}</span>
+            <Stepper label={t('עומק אי')} value={p.kitchenIsland.depth} min={40} max={200} step={10} onChange={(v) => set('kitchenIsland', { ...p.kitchenIsland!, depth: v })} />
           </label>
         </div>
       )}
 
-      <h3 className="section-title">מיזוג אוויר</h3>
-      <div className="seg" role="group" aria-label="סוג מיזוג">
-        {AC_TYPES.map((t) => (
-          <button type="button" key={t.k} aria-pressed={p.acType === t.k} onClick={() => set('acType', t.k)}>
-            {t.label}
+      <h3 className="section-title">{t('מיזוג אוויר')}</h3>
+      <div className="seg" role="group" aria-label={t('סוג מיזוג')}>
+        {AC_TYPES.map((o) => (
+          <button type="button" key={o.k} aria-pressed={p.acType === o.k} onClick={() => set('acType', o.k)}>
+            {t(o.label)}
           </button>
         ))}
       </div>
 
-      <h3 className="section-title">מרפסת</h3>
+      <h3 className="section-title">{t('מרפסת')}</h3>
       <div className="grid-3">
         <label className="field">
-          <span>שטח (מ״ר)</span>
-          <Stepper label="שטח מרפסת" value={p.balconyArea} max={200} onChange={(v) => set('balconyArea', v)} />
+          <span>{t('שטח (מ״ר)')}</span>
+          <Stepper label={t('שטח מרפסת')} value={p.balconyArea} max={200} onChange={(v) => set('balconyArea', v)} />
         </label>
         <label className="field">
-          <span>מתוכו מקורה (מ״ר)</span>
-          <Stepper label="מקורה" value={p.balconyCovered} max={p.balconyArea} onChange={(v) => set('balconyCovered', v)} />
+          <span>{t('מתוכו מקורה (מ״ר)')}</span>
+          <Stepper label={t('מקורה')} value={p.balconyCovered} max={p.balconyArea} onChange={(v) => set('balconyCovered', v)} />
         </label>
         <label className="field">
-          <span>סגירה (מ״ר)</span>
-          <Stepper label="סגירת מרפסת" value={p.balconyEnclosure} max={p.balconyArea} onChange={(v) => set('balconyEnclosure', v)} />
+          <span>{t('סגירה (מ״ר)')}</span>
+          <Stepper label={t('סגירת מרפסת')} value={p.balconyEnclosure} max={p.balconyArea} onChange={(v) => set('balconyEnclosure', v)} />
         </label>
       </div>
 
-      <h3 className="section-title">מחסן וחניות</h3>
+      <h3 className="section-title">{t('מחסן וחניות')}</h3>
       <div className="grid-3">
         <label className="field">
-          <span>מחסן (מ״ר)</span>
-          <Stepper label="מחסן" value={p.storageArea} max={40} onChange={(v) => set('storageArea', v)} />
+          <span>{t('מחסן (מ״ר)')}</span>
+          <Stepper label={t('מחסן')} value={p.storageArea} max={40} onChange={(v) => set('storageArea', v)} />
         </label>
         <label className="field">
-          <span>חניות</span>
+          <span>{t('חניות')}</span>
           <Stepper
-            label="חניות"
+            label={t('חניות')}
             value={p.parking}
             max={4}
             onChange={(v) => setP((x) => ({ ...x, parking: v, evChargers: Math.min(x.evChargers, v) }))}
           />
         </label>
         <label className="field">
-          <span>עמדות טעינה לרכב חשמלי</span>
-          <Stepper label="עמדות טעינה" value={p.evChargers} max={p.parking} onChange={(v) => set('evChargers', v)} />
+          <span>{t('עמדות טעינה לרכב חשמלי')}</span>
+          <Stepper label={t('עמדות טעינה')} value={p.evChargers} max={p.parking} onChange={(v) => set('evChargers', v)} />
         </label>
         <label className="toggle" style={{ alignSelf: 'end' }}>
           <input type="checkbox" checked={p.parkingCovered} onChange={(e) => set('parkingCovered', e.target.checked)} />
           <span>
-            <b>מקורות</b>
+            <b>{t('מקורות')}</b>
           </span>
         </label>
       </div>
 
-      <h3 className="section-title">חיות מחמד</h3>
+      <h3 className="section-title">{t('חיות מחמד')}</h3>
       <div className="grid-3">
         <label className="field">
-          <span>חתולים</span>
-          <Stepper label="חתולים" value={p.cats} max={10} onChange={(v) => set('cats', v)} />
+          <span>{t('חתולים')}</span>
+          <Stepper label={t('חתולים')} value={p.cats} max={10} onChange={(v) => set('cats', v)} />
         </label>
         <label className="field">
-          <span>כלבים</span>
-          <Stepper label="כלבים" value={p.dogs} max={10} onChange={(v) => set('dogs', v)} />
+          <span>{t('כלבים')}</span>
+          <Stepper label={t('כלבים')} value={p.dogs} max={10} onChange={(v) => set('dogs', v)} />
         </label>
       </div>
 
-      <h3 className="section-title">תוספות ותקציב</h3>
+      <h3 className="section-title">{t('תוספות ותקציב')}</h3>
       <div className="grid-2">
         <label className="toggle">
           <input type="checkbox" checked={p.works} onChange={(e) => set('works', e.target.checked)} />
           <span>
-            <b>עבודות ושדרוגים</b>
-            <small>בדק בית, חשמלאי, הובלה, תריסים</small>
+            <b>{t('עבודות ושדרוגים')}</b>
+            <small>{t('בדק בית, חשמלאי, הובלה, תריסים')}</small>
           </span>
         </label>
         <label className="toggle">
           <input type="checkbox" checked={p.smartHome} onChange={(e) => set('smartHome', e.target.checked)} />
           <span>
-            <b>בית חכם ואבטחה</b>
-            <small>Mesh, מנעול, מצלמות, חיישנים</small>
+            <b>{t('בית חכם ואבטחה')}</b>
+            <small>{t('Mesh, מנעול, מצלמות, חיישנים')}</small>
           </span>
         </label>
       </div>
       <div className="field">
-        <span>רמת מחירים</span>
-        <div className="seg" role="group" aria-label="רמת מחירים">
-          {TIERS.map((t) => (
-            <button type="button" key={t.k} aria-pressed={p.tier === t.k} onClick={() => set('tier', t.k)}>
-              {t.label}
+        <span>{t('רמת מחירים')}</span>
+        <div className="seg" role="group" aria-label={t('רמת מחירים')}>
+          {TIERS.map((o) => (
+            <button type="button" key={o.k} aria-pressed={p.tier === o.k} onClick={() => set('tier', o.k)}>
+              {t(o.label)}
             </button>
           ))}
         </div>
@@ -301,26 +302,28 @@ export function PlannerWizard({ initial, hasData, onApply, onClose, busy }: Prop
 
       {hasData && (
         <>
-          <h3 className="section-title">מה לעשות עם הרשימה הקיימת?</h3>
-          <div className="seg" role="group" aria-label="מצב">
+          <h3 className="section-title">{t('מה לעשות עם הרשימה הקיימת?')}</h3>
+          <div className="seg" role="group" aria-label={t('מצב')}>
             <button type="button" aria-pressed={mode === 'merge'} onClick={() => setMode('merge')}>
-              להוסיף רק מה שחסר
+              {t('להוסיף רק מה שחסר')}
             </button>
             <button type="button" aria-pressed={mode === 'replace'} onClick={() => setMode('replace')}>
-              למחוק ולבנות מחדש
+              {t('למחוק ולבנות מחדש')}
             </button>
           </div>
           <p className="hint">
-            {mode === 'merge'
-              ? 'מוצרים שכבר ברשימה (כולל מחירים וסימוני ✓) לא ישתנו.'
-              : 'כל הקטגוריות והמוצרים הנוכחיים יימחקו, כולל סימוני ✓.'}
+            {t(
+              mode === 'merge'
+                ? 'מוצרים שכבר ברשימה (כולל מחירים וסימוני ✓) לא ישתנו.'
+                : 'כל הקטגוריות והמוצרים הנוכחיים יימחקו, כולל סימוני ✓.',
+            )}
           </p>
         </>
       )}
 
       <div className="plan-summary">
         <span>
-          {preview.cats} קטגוריות · {preview.count} מוצרים
+          {t('{n} קטגוריות', { n: preview.cats })} · {t('{n} מוצרים', { n: preview.count })}
         </span>
         <span className="num">{shekel(preview.total)}</span>
       </div>

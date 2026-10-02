@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { IconClose } from './Icons';
 import { bidi } from '../lib/format';
+import { t } from '../i18n';
 
 interface Props {
   eyebrow?: string;
@@ -37,7 +38,7 @@ export function Sheet({ eyebrow, title, onClose, children, footer, wide }: Props
             {eyebrow && <div className="eyebrow">{eyebrow}</div>}
             <h2>{bidi(title)}</h2>
           </div>
-          <button className="icon-btn" onClick={onClose} aria-label="סגירה">
+          <button className="icon-btn" onClick={onClose} aria-label={t('סגירה')}>
             <IconClose />
           </button>
         </div>
@@ -66,7 +67,7 @@ export function Stepper({
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
   return (
     <div className="stepper">
-      <button type="button" onClick={() => onChange(clamp(value + step))} aria-label={`הוספה — ${label}`}>
+      <button type="button" onClick={() => onChange(clamp(value + step))} aria-label={t('הוספה — {l}', { l: label })}>
         +
       </button>
       <input
@@ -78,7 +79,7 @@ export function Stepper({
           if (!Number.isNaN(v)) onChange(clamp(v));
         }}
       />
-      <button type="button" onClick={() => onChange(clamp(value - step))} aria-label={`הפחתה — ${label}`}>
+      <button type="button" onClick={() => onChange(clamp(value - step))} aria-label={t('הפחתה — {l}', { l: label })}>
         −
       </button>
     </div>
