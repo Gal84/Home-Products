@@ -750,11 +750,72 @@ a {
 }
 .item {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 110px 140px 120px;
+  grid-template-columns: 28px minmax(0, 1fr) 110px 140px 120px 32px;
   align-items: center;
   gap: 16px;
   padding: 12px 0;
   border-bottom: 1px solid var(--rule);
+}
+/* Set-aside button: quiet until the row is hovered, always reachable by keyboard and touch. */
+.item .skip {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease,
+    transform 120ms ease-out;
+}
+.item .skip svg {
+  width: 16px;
+  height: 16px;
+}
+.item .skip:active {
+  transform: scale(0.92);
+}
+.item .skip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .item .skip {
+    opacity: 0.35;
+    transition:
+      opacity 150ms ease,
+      color 150ms ease,
+      border-color 150ms ease,
+      transform 120ms ease-out;
+  }
+  .item:hover .skip,
+  .item .skip:focus-visible {
+    opacity: 1;
+  }
+  .item .skip:hover {
+    color: var(--accent);
+    border-color: var(--rule);
+  }
+}
+/* A set-aside item fades back but stays readable enough to find and restore. */
+.item > :not(.skip) {
+  transition: opacity 200ms ease;
+}
+.item.excluded > :not(.skip) {
+  opacity: 0.3;
+}
+.item.excluded .name b {
+  text-decoration: line-through;
+  text-decoration-color: var(--muted);
+}
+.item.excluded .skip {
+  opacity: 1;
+  color: var(--accent);
 }
 .item:hover {
   background: linear-gradient(to left, transparent, var(--paper-2) 12%, var(--paper-2) 88%, transparent);
@@ -1422,10 +1483,10 @@ a {
     justify-content: flex-start;
   }
   .item {
-    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-columns: 28px minmax(0, 1fr) auto 32px;
     grid-template-areas:
-      'chk name total'
-      'chk prio calc';
+      'chk name total skip'
+      'chk prio calc skip';
     gap: 4px 12px;
   }
   .item .check {
@@ -1444,6 +1505,10 @@ a {
   }
   .item .total {
     grid-area: total;
+  }
+  .item .skip {
+    grid-area: skip;
+    align-self: center;
   }
   .grid-3 {
     grid-template-columns: 1fr 1fr;

@@ -73,3 +73,16 @@ export const IconCheck = (p: P) => (
     <path d="M5 12.5 10 17.5 19 7" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
+
+export const IconMinus = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M5 12h14" />
+  </svg>
+);
+
+export const IconRestore = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M4 12a8 8 0 1 0 2.35-5.65L4 8.7" />
+    <path d="M4 4v4.7h4.7" />
+  </svg>
+);

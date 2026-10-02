@@ -28,7 +28,7 @@ function download(name: string, content: string, type: string) {
 
 function toCsv(d: HomeData): string {
   const cats = sortedCategories(d);
-  const rows = [['קטגוריה', 'מוצר', 'כמות', 'מחיר ליחידה', 'סה"כ', 'עדיפות', 'נרכש', 'חנות', 'קישור', 'הערות']];
+  const rows = [['קטגוריה', 'מוצר', 'כמות', 'מחיר ליחידה', 'סה"כ', 'עדיפות', 'נרכש', 'מושמט', 'חנות', 'קישור', 'הערות']];
   for (const c of cats) {
     for (const i of live(d.items).filter((x) => x.categoryId === c.id)) {
       rows.push([
@@ -39,6 +39,7 @@ function toCsv(d: HomeData): string {
         String(lineTotal(i)),
         PRIORITY_LABEL[i.priority],
         i.purchased ? 'כן' : 'לא',
+        i.excluded ? 'כן' : 'לא',
         i.store ?? '',
         i.link ?? '',
         i.notes ?? '',

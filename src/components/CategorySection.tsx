@@ -1,6 +1,6 @@
 import type { Category, Item } from '../types';
 import { bidi, catNo, lineTotal, num, PRIORITY_LABEL, shekel, totals } from '../lib/format';
-import { IconCheck, IconChevron, IconDown, IconEdit, IconPlus, IconUp } from './Icons';
+import { IconCheck, IconChevron, IconDown, IconEdit, IconMinus, IconPlus, IconRestore, IconUp } from './Icons';
 
 interface Props {
   index: number;
@@ -17,6 +17,7 @@ interface Props {
   onAddItem: () => void;
   onOpenItem: (item: Item) => void;
   onTogglePurchased: (item: Item) => void;
+  onToggleExcluded: (item: Item) => void;
 }
 
 export function CategorySection(props: Props) {
@@ -80,7 +81,13 @@ export function CategorySection(props: Props) {
           ) : (
             <ul className="items">
               {shown.map((it) => (
-                <ItemRow key={it.id} item={it} onOpen={() => props.onOpenItem(it)} onToggle={() => props.onTogglePurchased(it)} />
+                <ItemRow
+                  key={it.id}
+                  item={it}
+                  onOpen={() => props.onOpenItem(it)}
+                  onToggle={() => props.onTogglePurchased(it)}
+                  onExclude={() => props.onToggleExcluded(it)}
+                />
               ))}
             </ul>
           )}
@@ -93,11 +100,11 @@ export function CategorySection(props: Props) {
   );
 }
 
-function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; onToggle: () => void }) {
+function ItemRow({ item, onOpen, onToggle, onExclude }: { item: Item; onOpen: () => void; onToggle: () => void; onExclude: () => void }) {
   const sub = [item.store, item.notes].filter(Boolean).join(' · ');
   const paid = item.actualPrice != null;
   return (
-    <li className={`item${item.purchased ? ' bought' : ''}`}>
+    <li className={`item${item.purchased ? ' bought' : ''}${item.excluded ? ' excluded' : ''}`}>
       <button
         className="check"
         role="checkbox"
@@ -125,6 +132,15 @@ function ItemRow({ item, onOpen, onToggle }: { item: Item; onOpen: () => void; o
         {shekel(lineTotal(item))}
         {paid && <span className="paid">שולם בפועל</span>}
       </span>
+      <button
+        className="skip"
+        onClick={onExclude}
+        aria-pressed={!!item.excluded}
+        aria-label={item.excluded ? `החזרת ${item.name} לחישוב` : `הוצאת ${item.name} מהחישוב`}
+        title={item.excluded ? 'החזרה לחישוב' : 'הוצאה מהחישוב (בלי למחוק)'}
+      >
+        {item.excluded ? <IconRestore /> : <IconMinus />}
+      </button>
     </li>
   );
 }

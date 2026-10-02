@@ -27,6 +27,8 @@ export interface Item {
   actualPrice?: number | null;
   priority: Priority;
   purchased: boolean;
+  /** Set aside: kept in the list (greyed out) but left out of every total until restored. */
+  excluded?: boolean;
   store?: string;
   link?: string;
   notes?: string;
