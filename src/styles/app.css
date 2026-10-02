@@ -234,6 +234,34 @@ a {
   border-bottom-color: var(--ink-2);
   border-radius: var(--radius);
 }
+.code-field {
+  position: relative;
+}
+/* Room on the left for the show/hide toggle (the field itself is LTR). */
+.code-field .input {
+  padding-left: 64px;
+}
+.code-reveal {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  min-width: 56px;
+  padding: 0 12px;
+  background: none;
+  border: 0;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+.code-reveal:hover {
+  color: var(--accent);
+}
+.code-reveal:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+}
 .input:focus,
 .select:focus,
 .textarea:focus {
