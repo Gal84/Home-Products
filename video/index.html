@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Apartment tour (pre-rendered)</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #efe6d8;
+      }
+      #tour {
+        position: relative;
+        width: 1200px;
+        height: 900px;
+        overflow: hidden;
+      }
+      #scene {
+        position: absolute;
+        inset: 0;
+      }
+      #scene canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="tour" data-composition-id="tour" data-width="1200" data-height="900" data-start="0" data-duration="55.85" data-fps="24" data-samples="5">
+      <div id="scene"></div>
+    </div>
+    <script src="tour.bundle.js"></script>
+  </body>
+</html>

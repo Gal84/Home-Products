@@ -5,6 +5,8 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { TexturePass } from 'three/examples/jsm/postprocessing/TexturePass.js';
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /*
@@ -1382,20 +1384,50 @@ export interface ApartmentTour {
   /** Eases the tour to a stop (true) or back up to speed (false). */
   setPaused: (paused: boolean) => void;
   dispose: () => void;
+  /** Present in film mode only: frame-exact control for offline rendering. */
+  film?: {
+    /** Length of one loop, in seconds. */
+    duration: number;
+    /** Renders the frame for this moment of the tour. */
+    seek: (sec: number) => void;
+    /** When each caption starts, in seconds. */
+    labels: { t: number; label: string }[];
+  };
+}
+
+/**
+ * Film mode renders offline, frame by frame, for the pre-rendered video (see video/). With no
+ * frame-rate budget every frame is the average of several samples: each sample nudges the camera
+ * by a fraction of a pixel (clean edges), moves it along the shutter interval (motion blur) and
+ * shifts the sun and an overhead sky light (soft shadows and contact shading).
+ */
+export interface FilmOptions {
+  samples: number;
+  fps: number;
 }
 
 /**
  * Mounts the tour into `container`. `onLabel` fires when the caption changes; `onFrame` gets the
  * loop progress (0–1) every frame, for a progress line.
  */
-export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame?: (progress: number) => void): ApartmentTour {
+export function mountApartment(
+  container: HTMLElement,
+  onLabel: LabelFn,
+  onFrame?: (progress: number) => void,
+  film?: FilmOptions,
+): ApartmentTour {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const small = Math.min(window.innerWidth, window.innerHeight) < 700;
+  const small = !film && Math.min(window.innerWidth, window.innerHeight) < 700;
 
   // A logarithmic depth buffer keeps thin layers (floors on slabs, ponds on the meadow 1 km out)
   // from z-fighting at any distance.
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
-  const maxRatio = Math.min(window.devicePixelRatio, small ? 1.5 : 2);
+  const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: 'high-performance',
+    logarithmicDepthBuffer: true,
+    preserveDrawingBuffer: !!film, // the frame must still be there when it is captured
+  });
+  const maxRatio = film ? 1 : Math.min(window.devicePixelRatio, small ? 1.5 : 2);
   const minRatio = Math.min(1, maxRatio);
   let ratio = maxRatio;
   renderer.setPixelRatio(ratio);
@@ -1405,7 +1437,7 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   // Almost nothing that casts a shadow moves, so the shadow map is redrawn every third frame only.
-  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.autoUpdate = !!film;
   renderer.domElement.setAttribute('aria-hidden', 'true');
   container.appendChild(renderer.domElement);
 
@@ -1420,14 +1452,15 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
   scene.environment = envTex;
   scene.environmentIntensity = 0.45;
 
-  const hemi = new THREE.HemisphereLight('#ffe9d2', '#a4a27c', 0.95);
+  const hemi = new THREE.HemisphereLight('#ffe9d2', '#a4a27c', film ? 0.5 : 0.95);
   scene.add(hemi);
   // Low, warm evening sun from the west-north-west over the reserve.
   const sun = new THREE.DirectionalLight('#ffd3a3', 2.6);
   sun.position.set(-15, 11, -9);
   sun.target.position.set(7, 0, 5);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
+  const sunMap = small ? 1024 : 2048;
+  sun.shadow.mapSize.set(sunMap, sunMap);
   Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 60 });
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.03;
@@ -1435,6 +1468,18 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
   const fill = new THREE.DirectionalLight('#c9d0ee', 0.55);
   fill.position.set(18, 10, 20);
   scene.add(fill);
+  // Film only: part of the ambient light comes from a shadow-casting light that moves around the
+  // sky between samples, so furniture sits in soft contact shadow instead of floating.
+  const skyLight = new THREE.DirectionalLight('#ffe9d2', 1.1);
+  if (film) {
+    skyLight.target.position.set(7, 0, 5);
+    skyLight.castShadow = true;
+    skyLight.shadow.mapSize.set(1024, 1024);
+    Object.assign(skyLight.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 80 });
+    skyLight.shadow.bias = -0.0005;
+    skyLight.shadow.normalBias = 0.04;
+    scene.add(skyLight, skyLight.target);
+  }
 
   const lights = new THREE.Group();
   const b = new Builder();
@@ -1445,11 +1490,15 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
   // Soft bloom on large screens: bulbs, sunlit walls and the horizon glow a little, like a lens.
   // Phones skip it to keep the frame rate up.
   let composer: EffectComposer | null = null;
+  // Film: each sample is rendered here, then added into `accumRT`, which feeds the composer.
+  // No multisampling needed: the sub-pixel camera jitter between samples does the anti-aliasing.
+  const sampleRT = film ? new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }) : null;
+  const accumRT = film ? new THREE.WebGLRenderTarget(1, 1, { type: THREE.FloatType }) : null;
   if (!small) {
-    const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+    const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: film ? 0 : 4 });
     composer = new EffectComposer(renderer, rt);
-    composer.addPass(new RenderPass(scene, camera));
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.2, 0.45, 0.97));
+    composer.addPass(accumRT ? new TexturePass(accumRT.texture) : new RenderPass(scene, camera));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), film ? 0.28 : 0.2, 0.45, 0.97));
     composer.addPass(new OutputPass());
   }
   const draw = () => (composer ? composer.render() : renderer.render(scene, camera));
@@ -1515,11 +1564,12 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
     draw();
   };
   const ro = new ResizeObserver(resize);
-  ro.observe(container);
-
   let visible = true;
   const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting));
-  io.observe(container);
+  if (!film) {
+    ro.observe(container);
+    io.observe(container);
+  }
 
   let raf = 0;
   let clock = 0;
@@ -1568,6 +1618,72 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
     for (const a of animators) a(clock);
     draw();
   };
+
+  if (film && sampleRT && accumRT) {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    resize();
+    camera.fov = 62;
+    camera.updateProjectionMatrix();
+    sampleRT.setSize(w, h);
+    accumRT.setSize(w, h);
+    const n = film.samples;
+    const add = new FullScreenQuad(
+      new THREE.MeshBasicMaterial({
+        map: sampleRT.texture,
+        transparent: true,
+        opacity: 1 / n,
+        blending: THREE.AdditiveBlending,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    // Fixed, evenly spread sample patterns (a sunflower spiral): the same for every frame, so
+    // soft shadows hold still instead of shimmering.
+    const spiral = (i: number) => {
+      const r = Math.sqrt((i + 0.5) / n);
+      const a = i * 2.39996323;
+      return [r * Math.cos(a), r * Math.sin(a)];
+    };
+    const sunHome = sun.position.clone();
+    const shutter = 0.5 / film.fps;
+    const seek = (sec: number) => {
+      renderer.setRenderTarget(accumRT);
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear();
+      for (let i = 0; i < n; i++) {
+        const [u, v] = spiral(i);
+        const [ju, jv] = spiral((i * 5 + 2) % n);
+        const ts = sec + ((i + 0.5) / n - 0.5) * shutter;
+        place(ts);
+        for (const a of animators) a(ts);
+        camera.setViewOffset(w, h, ju * 0.5, jv * 0.5, w, h);
+        sun.position.set(sunHome.x + u * 0.55, sunHome.y + v * 0.3, sunHome.z - v * 0.55);
+        // Sky directions spread up to about 55° from straight up.
+        skyLight.position.set(7 + u * 44, 30, 5 + v * 44);
+        renderer.setRenderTarget(sampleRT);
+        renderer.render(scene, camera);
+        renderer.setRenderTarget(accumRT);
+        const auto = renderer.autoClear;
+        renderer.autoClear = false;
+        add.render(renderer);
+        renderer.autoClear = auto;
+      }
+      renderer.setRenderTarget(null);
+      camera.clearViewOffset();
+      draw();
+    };
+    // Caption timeline, sampled along the loop.
+    const labels: { t: number; label: string }[] = [];
+    for (let sec = 0; sec < path.total; sec += 0.05) {
+      const t = path.pos.getUtoTmapping(path.uAt(sec), 0);
+      const label = STOPS[Math.round(t * STOPS.length) % STOPS.length].label;
+      if (!labels.length || labels[labels.length - 1].label !== label) labels.push({ t: Math.round(sec * 100) / 100, label });
+    }
+    seek(0);
+    return { dispose: () => renderer.dispose(), setPaused: () => {}, film: { duration: path.total, seek, labels } };
+  }
 
   // `?apt-t=SECONDS` freezes the tour at one moment (used for screenshots).
   const frozen = Number(new URLSearchParams(window.location.search).get('apt-t'));

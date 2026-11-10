@@ -8,8 +8,12 @@ import { homeCache } from '../lib/storage';
 import { createHome, HomeNotFound, loadHome, pinLogin, PinLocked, supabaseConfigured } from '../lib/supabase';
 import { PlannerWizard } from './PlannerWizard';
 import { Apartment3D } from './Apartment3D';
+import { TourVideo } from './TourVideo';
 import { LangSwitch } from './LangSwitch';
 import { t } from '../i18n';
+
+// `?tour=live` (or the `?apt-t=` screenshot mode) shows the real-time 3D tour instead of the video.
+const LIVE_TOUR = /[?&](tour=live|apt-t=)/.test(window.location.search);
 
 interface Props {
   onEnter: (code: string) => void;
@@ -87,7 +91,7 @@ export function Gate({ onEnter, notice }: Props) {
           <div className="eyebrow">{t('N°01 — קטלוג רכישות לדירה חדשה')}</div>
           <LangSwitch />
         </div>
-        <Apartment3D fallback={<FloorPlan />} />
+        {LIVE_TOUR ? <Apartment3D fallback={<FloorPlan />} /> : <TourVideo fallback={<Apartment3D fallback={<FloorPlan />} />} />}
         <h1>
           {t('דירה')}
           <br />
