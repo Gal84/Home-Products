@@ -5,6 +5,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /*
  * A furnished 3D model of the owner's apartment (Damri "Afek", type A, floor 19), with a camera that
@@ -232,6 +233,13 @@ class Builder {
       mesh.position.set(x1 + dx * mid, (y0 + y1) / 2, z1 + dz * mid);
       mesh.rotation.y = angle;
       this.add(mesh);
+      // Skirting board along the foot of every solid, full-height wall.
+      if (y0 === 0 && t === WALL_T && height === WALL_H && !mat.transparent) {
+        const skirt = new THREE.Mesh(new THREE.BoxGeometry(b - a, 0.08, t + 0.024), this.mat('#faf7f1', 0.6));
+        skirt.position.set(mesh.position.x, 0.04, mesh.position.z);
+        skirt.rotation.y = angle;
+        this.add(skirt, false);
+      }
     };
     const sorted = [...gaps].sort((p, q) => p.a - q.a);
     let at = 0;
@@ -273,6 +281,8 @@ function plant(b: Builder, x: number, z: number, scale = 1, pot = '#d8c9b2') {
     m.position.set(Math.cos(a) * d, (0.62 + r() * 0.55) * scale - potH, Math.sin(a) * d);
     crown.add(m);
   }
+  crown.userData.dynamic = true;
+  mergeStatic(crown);
   b.add(crown);
   // Outdoors the breeze is stronger than the draught inside.
   const sway = z < 0 ? 0.05 : 0.018;
@@ -464,10 +474,14 @@ function cat(b: Builder, x: number, y: number, z: number, rot: number, kind: Cat
     sph.scale.setScalar(rad);
     tailPivot.add(sph);
   }
+  tailPivot.userData.dynamic = true;
+  mergeStatic(tailPivot);
   g.add(tailPivot);
   g.position.set(x, y, z);
   g.rotation.y = rot;
   g.scale.setScalar(scale);
+  g.userData.dynamic = true;
+  mergeStatic(g);
   b.add(g);
   const phase = x * 3.1 + z;
   return (t: number) => {
@@ -528,9 +542,12 @@ function buildApartment(b: Builder, lights: THREE.Group): ((t: number) => void)[
   // Ceilings only get bounce light, so they glow slightly to read as white rather than brown.
   const ceilingMat = b.mat('#f6f2ec', 1, 0, { emissive: '#d9d0c3', emissiveIntensity: 0.6 });
 
-  const oak = new THREE.MeshStandardMaterial({ map: planks([200, 165, 122], 7), roughness: 0.72 });
+  // The plank texture doubles as a bump map, so the seams catch the low sun; a little sheen for lacquer.
+  const oakTex = planks([200, 165, 122], 7);
+  const oak = new THREE.MeshStandardMaterial({ map: oakTex, bumpMap: oakTex, bumpScale: 0.6, roughness: 0.58 });
   const tile = new THREE.MeshStandardMaterial({ map: tiles('#dcd5ca', '#c3b9ab', 4), roughness: 0.55 });
-  const deck = new THREE.MeshStandardMaterial({ map: planks([150, 128, 108], 3), roughness: 0.85 });
+  const deckTex = planks([150, 128, 108], 3);
+  const deck = new THREE.MeshStandardMaterial({ map: deckTex, bumpMap: deckTex, bumpScale: 1.2, roughness: 0.85 });
   const lobbyTile = new THREE.MeshStandardMaterial({ map: tiles('#e6e0d6', '#cfc6b8', 3), roughness: 0.6 });
 
   const R = {
@@ -559,6 +576,21 @@ function buildApartment(b: Builder, lights: THREE.Group): ((t: number) => void)[
   b.floor(R.lobby, lobbyTile, 1.8);
   for (const k of ['living', 'hall', 'hall2', 'mamad', 'bed2', 'ensuite', 'master', 'bath', 'bed1', 'wc'] as const) b.ceiling(R[k], ceilingMat);
   b.ceiling({ x0: 0, x1: 7.3, z0: -1.4, z1: 0 }, ceilingMat); // covered half of the balcony (floor 20 above)
+  // Recessed downlights. Like the ceilings they face down only, so the overhead shots stay clean.
+  const spotGeo = new THREE.CircleGeometry(0.055, 20).rotateX(Math.PI / 2);
+  const spotMat = new THREE.MeshBasicMaterial({ color: '#fff4de' });
+  for (const [x, z] of [
+    [1.4, 1.5], [3.4, 1.5], [1.4, 4.1], [3.4, 4.1], [5.6, 4.6], [1.4, 6.9], [5.3, 6.9],
+    [8.2, 6.1], [10.0, 6.1], [7.85, 8.2],
+    [12.0, 5.6], [14.0, 5.6], [12.0, 7.7], [14.0, 7.7],
+    [8.6, 2.2], [8.6, 4.0], [11.7, 2.3], [11.7, 4.0],
+    [6.3, 10.3], [8.1, 10.3], [6.3, 12.3], [8.1, 12.3],
+    [1.8, -0.7], [5.4, -0.7],
+  ]) {
+    const spot = new THREE.Mesh(spotGeo, spotMat);
+    spot.position.set(x, WALL_H - 0.004, z);
+    b.add(spot, false);
+  }
   // The slab sits a hair above the ceiling plane; flush, the two faces z-fight and the ceiling flickers.
   b.box(7.42, 0.25, 1.4, slab, 3.65, WALL_H + 0.01, -0.7);
 
@@ -1136,6 +1168,7 @@ function flock(scene: THREE.Scene): Animator[] {
     right.scale.x = -1;
     bird.add(left, right);
     bird.scale.setScalar(1.6);
+    bird.userData.dynamic = true;
     scene.add(bird);
     const lag = i * 0.055 + r() * 0.02;
     const lane = V((r() - 0.5) * 9, (r() - 0.5) * 5, (r() - 0.5) * 9);
@@ -1290,6 +1323,59 @@ function makePath() {
   return { pos, tgt, total, uAt };
 }
 
+// ─── Batching ───────────────────────────────────────────────────────────────
+
+/**
+ * Merges every static opaque mesh under `root` into one mesh per material. The model is built from
+ * hundreds of small boxes; drawn one by one they cost a draw call each (twice, with the shadow
+ * pass). Anything below `root` marked `userData.dynamic` (plants, cats, birds) keeps moving on its
+ * own, and transparent surfaces stay separate so they still sort correctly. A moving group can be
+ * batched too: its parts are merged in the group's own space.
+ */
+function mergeStatic(root: THREE.Object3D) {
+  root.updateMatrixWorld(true);
+  const toRoot = root.matrixWorld.clone().invert();
+  const local = new THREE.Matrix4();
+  const buckets = new Map<string, { mat: THREE.Material; cast: boolean; receive: boolean; geos: THREE.BufferGeometry[] }>();
+  const merged: THREE.Mesh[] = [];
+  const visit = (o: THREE.Object3D) => {
+    if (o !== root && o.userData.dynamic) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh) {
+      const mat = m.material;
+      const a = m.geometry.attributes;
+      if (Array.isArray(mat) || mat.transparent || m.renderOrder !== 0 || !m.frustumCulled || !a.normal || !a.uv) return;
+      local.multiplyMatrices(toRoot, m.matrixWorld);
+      if (m.children.length || local.determinant() < 0) return;
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
+      g.applyMatrix4(local);
+      const key = `${mat.uuid}|${m.castShadow}|${m.receiveShadow}`;
+      let b = buckets.get(key);
+      if (!b) buckets.set(key, (b = { mat, cast: m.castShadow, receive: m.receiveShadow, geos: [] }));
+      b.geos.push(g);
+      merged.push(m);
+      return;
+    }
+    o.children.forEach(visit);
+  };
+  visit(root);
+  const old = new Set<THREE.BufferGeometry>();
+  for (const m of merged) {
+    old.add(m.geometry);
+    m.removeFromParent();
+  }
+  old.forEach((g) => g.dispose());
+  for (const b of buckets.values()) {
+    const geo = b.geos.length > 1 ? mergeGeometries(b.geos) : b.geos[0];
+    if (b.geos.length > 1) b.geos.forEach((g) => g.dispose());
+    const mesh = new THREE.Mesh(geo, b.mat);
+    mesh.castShadow = b.cast;
+    mesh.receiveShadow = b.receive;
+    root.add(mesh);
+  }
+}
+
 // ─── Mount ──────────────────────────────────────────────────────────────────
 
 export interface ApartmentTour {
@@ -1309,12 +1395,17 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
   // A logarithmic depth buffer keeps thin layers (floors on slabs, ponds on the meadow 1 km out)
   // from z-fighting at any distance.
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, small ? 1.5 : 1.75));
+  const maxRatio = Math.min(window.devicePixelRatio, small ? 1.5 : 2);
+  const minRatio = Math.min(1, maxRatio);
+  let ratio = maxRatio;
+  renderer.setPixelRatio(ratio);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Almost nothing that casts a shadow moves, so the shadow map is redrawn every third frame only.
+  renderer.shadowMap.autoUpdate = false;
   renderer.domElement.setAttribute('aria-hidden', 'true');
   container.appendChild(renderer.domElement);
 
@@ -1349,6 +1440,7 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
   const b = new Builder();
   const animators = [...buildApartment(b, lights), ...b.anim, ...buildLandscape(scene), dust(scene)];
   scene.add(b.group, lights);
+  mergeStatic(scene);
 
   // Soft bloom on large screens: bulbs, sunlit walls and the horizon glow a little, like a lens.
   // Phones skip it to keep the frame rate up.
@@ -1419,6 +1511,7 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
     camera.aspect = w / h;
     camera.fov = w / h < 1 ? 72 : 60;
     camera.updateProjectionMatrix();
+    renderer.shadowMap.needsUpdate = true;
     draw();
   };
   const ro = new ResizeObserver(resize);
@@ -1435,6 +1528,25 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
   // (about a quarter of a second) instead of freezing mid-motion.
   let rate = 1;
   let targetRate = 1;
+  // Adaptive resolution: if the device cannot hold a smooth frame rate the canvas is rendered a
+  // step smaller, and after a steady stretch one step sharper again. A raise that has to be taken
+  // back is not tried twice, so the picture never keeps flickering between two sizes.
+  let frameMs = 16;
+  let frames = 0;
+  let raised = false;
+  let settled = false;
+  const tune = () => {
+    if (settled) return;
+    if (frameMs > 26 && ratio > minRatio) {
+      ratio = Math.max(minRatio, ratio - 0.25);
+      if (raised) settled = true;
+    } else if (frameMs < 17.5 && ratio < maxRatio && frames > 600 && !raised) {
+      ratio = Math.min(maxRatio, ratio + 0.25);
+      raised = true;
+    } else return;
+    renderer.setPixelRatio(ratio);
+    resize();
+  };
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
     // Cap the step so a dropped frame is a short pause, not a jump.
@@ -1448,6 +1560,9 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
       if (rate === 0) return; // settled: keep the last frame on screen
       rate = 0;
     }
+    frameMs += (Math.min(real, 0.1) * 1000 - frameMs) * 0.05;
+    if (++frames % 90 === 0) tune();
+    if (frames % 3 === 0) renderer.shadowMap.needsUpdate = true;
     clock += dt * rate;
     place(clock);
     for (const a of animators) a(clock);
@@ -1460,6 +1575,14 @@ export function mountApartment(container: HTMLElement, onLabel: LabelFn, onFrame
   place(start);
   for (const a of animators) a(start);
   resize();
+  if (frozen > 0) {
+    // Screenshot mode also reports the cost of the frame, for checking optimisations.
+    renderer.shadowMap.needsUpdate = true;
+    renderer.render(scene, camera);
+    container.dataset.calls = String(renderer.info.render.calls);
+    container.dataset.triangles = String(renderer.info.render.triangles);
+    draw();
+  }
   if (!reduced && !(frozen > 0)) raf = requestAnimationFrame(frame);
 
   const dispose = () => {
