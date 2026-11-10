@@ -5,3 +5,8 @@ dist
 *.log
 .DS_Store
 .netlify
+
+# pre-rendered tour: build artefacts
+video/tour.bundle.js
+video/renders
+video/.hyperframes

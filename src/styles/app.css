@@ -1276,6 +1276,24 @@ a {
   filter: none;
   transform: none;
 }
+/* The pre-rendered tour is 4:3; the frame crops it evenly where its own shape differs. */
+.apt3d video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  filter: blur(10px);
+  transform: scale(1.04);
+  transition:
+    filter 1.4s var(--ease-out),
+    transform 1.8s var(--ease-out);
+}
+.apt3d.ready video {
+  filter: none;
+  transform: none;
+}
 /* A soft lens vignette pulls the eye to the middle of the frame. */
 .apt3d::after {
   content: '';
