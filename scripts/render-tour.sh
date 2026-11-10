@@ -32,7 +32,7 @@ while awk "BEGIN{exit !($start < $END)}"; do
 done
 
 # Join, then encode for the web: H.264, fast start, no audio.
-ffmpeg -v error -y -f concat -safe 0 -i "$OUT/list.txt" -an -c:v libx264 -preset slow -crf 23 \
+ffmpeg -v error -y -f concat -safe 0 -i "$OUT/list.txt" -an -c:v libx264 -preset slow -crf 27 \
   -pix_fmt yuv420p -movflags +faststart public/tour/tour.mp4
 ffmpeg -v error -y -ss 9 -i public/tour/tour.mp4 -frames:v 1 -q:v 4 public/tour/poster.jpg
 ls -la public/tour
